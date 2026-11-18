@@ -99,12 +99,12 @@ export default function Signup() {
               <>
                 <Field label={tx('Full name')} error={errors.name} required><Input icon={UserRound} value={v.name} onChange={set('name')} autoComplete="name" placeholder={role === 'doctor' ? tx('e.g. Lina Khoury') : tx('e.g. Nadine Khalil')} /></Field>
                 <div className="grid grid-2" style={{ '--gap': '14px' }}>
-                  <Field label={tx('Email')} error={errors.email} required><Input type="email" icon={Mail} value={v.email} onChange={set('email')} autoComplete="email" /></Field>
+                  <Field label={tx('Email')} error={errors.email} required><Input type="email" icon={Mail} value={v.email} onChange={set('email')} autoComplete="email" placeholder={tx('you@example.com')} /></Field>
                   <Field label={tx('Mobile number')} error={errors.phone} required hint={tx('Lebanese number, e.g. 03 123 456')}><Input type="tel" icon={Phone} value={v.phone} onChange={set('phone')} autoComplete="tel" placeholder="+961 …" /></Field>
                 </div>
-                <Field label={tx('Password')} error={errors.password} required><PasswordInput icon={Lock} value={v.password} onChange={set('password')} autoComplete="new-password" /></Field>
+                <Field label={tx('Password')} error={errors.password} required><PasswordInput icon={Lock} value={v.password} onChange={set('password')} autoComplete="new-password" placeholder={tx('Create a password')} /></Field>
                 <PasswordStrength password={v.password} />
-                <Field label={tx('Confirm password')} error={errors.confirm} required><PasswordInput icon={Lock} value={v.confirm} onChange={set('confirm')} autoComplete="new-password" /></Field>
+                <Field label={tx('Confirm password')} error={errors.confirm} required><PasswordInput icon={Lock} value={v.confirm} onChange={set('confirm')} autoComplete="new-password" placeholder={tx('Re-enter your password')} /></Field>
               </>
             ) : (
               <>

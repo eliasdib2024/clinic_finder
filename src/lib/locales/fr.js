@@ -1420,4 +1420,10 @@ export default {
   "{0} issued prescription {1} and asked to see you again on {2}.": "{0} a émis l’ordonnance {1} et souhaite vous revoir le {2}.",
   "{0} completed their health profile": "{0} a complété son profil de santé",
   "Primary diagnosis": "Diagnostic principal",
+  "Enter your password": "Saisissez votre mot de passe",
+  "Create a password": "Créez un mot de passe",
+  "Re-enter your password": "Saisissez à nouveau votre mot de passe",
+  "Enter your current password": "Saisissez votre mot de passe actuel",
+  "Create a new password": "Créez un nouveau mot de passe",
+  "Re-enter your new password": "Saisissez à nouveau votre nouveau mot de passe",
 };

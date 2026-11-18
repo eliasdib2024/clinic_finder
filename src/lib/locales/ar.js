@@ -1420,4 +1420,10 @@ export default {
   "{0} issued prescription {1} and asked to see you again on {2}.": "أصدر {0} الوصفة {1} وطلب رؤيتك مجدداً في {2}.",
   "{0} completed their health profile": "أكمل {0} ملفه الصحي",
   "Primary diagnosis": "التشخيص الرئيسي",
+  "Enter your password": "أدخل كلمة المرور",
+  "Create a password": "أنشئ كلمة مرور",
+  "Re-enter your password": "أعد إدخال كلمة المرور",
+  "Enter your current password": "أدخل كلمة المرور الحالية",
+  "Create a new password": "أنشئ كلمة مرور جديدة",
+  "Re-enter your new password": "أعد إدخال كلمة المرور الجديدة",
 };

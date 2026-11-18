@@ -162,10 +162,10 @@ function PasswordTab() {
   };
   return (
     <form className="stack" onSubmit={save} noValidate style={{ maxWidth: 460 }}>
-      <Field label={tx('Current password')} error={errors.current} required><PasswordInput value={v.current} onChange={set('current')} autoComplete="current-password" /></Field>
-      <Field label={tx('New password')} error={errors.next} required><PasswordInput value={v.next} onChange={set('next')} autoComplete="new-password" /></Field>
+      <Field label={tx('Current password')} error={errors.current} required><PasswordInput value={v.current} onChange={set('current')} autoComplete="current-password" placeholder={tx('Enter your current password')} /></Field>
+      <Field label={tx('New password')} error={errors.next} required><PasswordInput value={v.next} onChange={set('next')} autoComplete="new-password" placeholder={tx('Create a new password')} /></Field>
       <PasswordStrength password={v.next} />
-      <Field label={tx('Confirm new password')} error={errors.confirm} required><PasswordInput value={v.confirm} onChange={set('confirm')} autoComplete="new-password" /></Field>
+      <Field label={tx('Confirm new password')} error={errors.confirm} required><PasswordInput value={v.confirm} onChange={set('confirm')} autoComplete="new-password" placeholder={tx('Re-enter your new password')} /></Field>
       <div><Button type="submit" loading={busy} icon={Lock}>{tx('Change password')}</Button></div>
     </form>
   );
