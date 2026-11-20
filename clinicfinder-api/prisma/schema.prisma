@@ -1,0 +1,525 @@
+// ClinicFinder — database schema (Prisma ORM 7, PostgreSQL)
+// Built from the final class diagram.
+//
+// Naming:
+//   • Prisma models are PascalCase/singular (code: prisma.user.findMany())
+//     and are mapped to plural snake_case tables with @@map("users").
+//   • Prisma fields are camelCase (code: user.fullName) and are mapped to the
+//     snake_case column names of the class diagram with @map("user_full_name").
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────── Enums ───────────────────────────────
+
+enum UserRole {
+  patient
+  doctor
+  admin
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  suspended
+  deactivated
+
+  @@map("user_status")
+}
+
+enum UserLanguage {
+  en
+  fr
+  ar
+
+  @@map("user_language")
+}
+
+enum NotificationKind {
+  info
+  success
+  warning
+
+  @@map("notification_kind")
+}
+
+enum ActivityKind {
+  signup
+  verification
+  booking
+  user
+  clinic
+  catalog
+
+  @@map("activity_kind")
+}
+
+enum OnboardingStatus {
+  pending
+  done
+
+  @@map("onboarding_status")
+}
+
+enum VerificationStatus {
+  pending
+  approved
+  rejected
+
+  @@map("verification_status")
+}
+
+enum Weekday {
+  mon
+  tue
+  wed
+  thu
+  fri
+  sat
+  sun
+
+  @@map("weekday")
+}
+
+enum AppointmentType {
+  in_person @map("in-person")
+  video
+
+  @@map("appointment_type")
+}
+
+// ─────────────────────── Users & notifications ───────────────────────
+
+model User {
+  id                     Int          @id @default(autoincrement()) @map("user_id")
+  fullName               String       @map("user_full_name") @db.VarChar(100)
+  email                  String       @unique @map("user_email") @db.VarChar(255)
+  phone                  String       @map("user_phone") @db.VarChar(20)
+  passwordHash           String       @map("user_password_hash") @db.VarChar(255)
+  emailVerified          Boolean      @default(false) @map("user_email_verified")
+  emailVerificationToken String?      @unique @map("email_verification_token") @db.VarChar(255)
+  role                   UserRole     @map("user_role")
+  status                 UserStatus   @default(active) @map("user_status")
+  statusReason           String?      @map("user_status_reason") @db.VarChar(300)
+  genderId               Int?         @map("gender_id")
+  language               UserLanguage @default(en) @map("user_language")
+  notifyEmail            Boolean      @default(true) @map("notify_email")
+  notifySms              Boolean      @default(false) @map("notify_sms")
+  notifyReminders        Boolean      @default(true) @map("notify_reminders")
+  notifyNewBooking       Boolean      @default(true) @map("notify_new_booking")
+  notifyMarketing        Boolean      @default(false) @map("notify_marketing")
+  resetCode              String?      @map("reset_code") @db.VarChar(255) // store a hash of the 6-digit code
+  resetCodeExpiry        DateTime?    @map("reset_code_expiry") @db.Timestamptz(3)
+  resetCodeAttempts      Int          @default(0) @map("reset_code_attempts")
+  resetCodeVerified      Boolean      @default(false) @map("reset_code_verified")
+  createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  gender             Gender?              @relation(fields: [genderId], references: [id], onDelete: Restrict)
+  patient            Patient?
+  doctor             Doctor?
+  reviewedDoctors    Doctor[]             @relation("DoctorReviewer")
+  notifications      Notification[]
+  appointmentChanges AppointmentHistory[]
+
+  @@index([role, status])
+  @@map("users")
+}
+
+model Gender {
+  id    Int    @id @default(autoincrement()) @map("gender_id")
+  desc  String @unique @map("gender_desc") @db.VarChar(30)
+  users User[]
+
+  @@map("genders")
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement()) @map("notification_id")
+  userId    Int              @map("user_id")
+  title     String           @map("notification_title") @db.VarChar(150)
+  body      String           @map("notification_body") @db.Text
+  vars      Json?            @map("notification_vars")
+  link      String?          @map("notification_link") @db.VarChar(255)
+  kind      NotificationKind @default(info) @map("notification_kind")
+  read      Boolean          @default(false) @map("notification_read")
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model ActivityLog {
+  id   Int          @id @default(autoincrement()) @map("activity_id")
+  text String       @map("activity_text") @db.VarChar(255)
+  vars Json?        @map("activity_vars")
+  kind ActivityKind @map("activity_kind")
+  at   DateTime     @default(now()) @map("activity_at") @db.Timestamptz(3)
+
+  @@index([at])
+  @@map("activity_logs")
+}
+
+// ────────────────────────────── Patients ─────────────────────────────
+
+model Patient {
+  id               Int              @id @default(autoincrement()) @map("patient_id")
+  userId           Int              @unique @map("user_id")
+  dob              DateTime?        @map("patient_dob") @db.Date // filled in the health-profile step
+  cityId           Int?             @map("city_id")
+  bloodId          Int?             @map("blood_id")
+  insuranceId      Int?             @map("insurance_id")
+  insuranceNumber  String?          @map("patient_insurance_number") @db.VarChar(50)
+  emergencyContact String?          @map("patient_emergency_contact") @db.VarChar(100)
+  noKnownAllergies Boolean          @default(false) @map("patient_no_known_allergies")
+  onboarding       OnboardingStatus @default(pending) @map("patient_onboarding")
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city          City?            @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  bloodType     BloodType?       @relation(fields: [bloodId], references: [id], onDelete: Restrict)
+  insurance     Insurance?       @relation(fields: [insuranceId], references: [id], onDelete: Restrict)
+  allergies     PatientAllergy[]
+  appointments  Appointment[]
+  prescriptions Prescription[]
+
+  @@map("patients")
+}
+
+model BloodType {
+  id       Int       @id @default(autoincrement()) @map("blood_id")
+  name     String    @unique @map("blood_name") @db.VarChar(3)
+  patients Patient[]
+
+  @@map("blood_types")
+}
+
+model PatientAllergy {
+  id        Int    @id @default(autoincrement()) @map("allergy_id")
+  patientId Int    @map("patient_id")
+  name      String @map("allergy_name") @db.VarChar(100)
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, name])
+  @@map("patient_allergies")
+}
+
+model Insurance {
+  id       Int               @id @default(autoincrement()) @map("insurance_id")
+  name     String            @unique @map("insurance_name") @db.VarChar(100)
+  patients Patient[]
+  doctors  DoctorInsurance[]
+
+  @@map("insurances")
+}
+
+// ────────────────────────────── Doctors ──────────────────────────────
+
+model Doctor {
+  id                      Int                @id @default(autoincrement()) @map("doctor_id")
+  userId                  Int                @unique @map("user_id")
+  specialtyId             Int                @map("specialty_id")
+  license                 String             @unique @map("doctor_license") @db.VarChar(30)
+  clinicId                Int?               @map("clinic_id") // null = own practice
+  cityId                  Int                @map("city_id")
+  practiceName            String             @map("practice_name") @db.VarChar(150)
+  practiceAddress         String             @map("practice_address") @db.VarChar(255)
+  practicePhone           String?            @map("practice_phone") @db.VarChar(20)
+  fee                     Decimal            @map("doctor_fee") @db.Decimal(10, 2) // USD
+  experience              Int                @default(0) @map("doctor_experience") // years
+  bio                     String?            @map("doctor_bio") @db.Text
+  rating                  Decimal            @default(0) @map("doctor_rating") @db.Decimal(2, 1)
+  reviewsCount            Int                @default(0) @map("doctor_reviews_count")
+  videoConsult            Boolean            @default(false) @map("doctor_video_consult")
+  slotLength              Int                @default(30) @map("doctor_slot_length") // 15–60 minutes
+  autoConfirm             Boolean            @default(false) @map("doctor_auto_confirm")
+  verificationStatus      VerificationStatus @default(pending) @map("verification_status")
+  verificationReason      String?            @map("verification_reason") @db.Text
+  verificationResubmitted Boolean            @default(false) @map("verification_resubmitted")
+  verificationNote        String?            @map("verification_note") @db.Text
+  verificationSubmittedAt DateTime           @default(now()) @map("verification_submitted_at") @db.Timestamptz(3)
+  verificationReviewedAt  DateTime?          @map("verification_reviewed_at") @db.Timestamptz(3)
+  reviewedById            Int?               @map("reviewed_by_id") // admin user
+  createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty     Specialty         @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+  clinic        Clinic?           @relation(fields: [clinicId], references: [id], onDelete: SetNull)
+  city          City              @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  reviewedBy    User?             @relation("DoctorReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  languages     DoctorLanguage[]
+  insurances    DoctorInsurance[]
+  educations    DoctorEducation[]
+  workingHours  WorkingHours[]
+  blockedDates  BlockedDate[]
+  appointments  Appointment[]
+  prescriptions Prescription[]
+
+  @@index([specialtyId, cityId])
+  @@index([verificationStatus])
+  @@map("doctors")
+}
+
+model Specialty {
+  id      Int      @id @default(autoincrement()) @map("specialty_id")
+  name    String   @unique @map("specialty_name") @db.VarChar(100)
+  icon    String?  @map("specialty_icon") @db.VarChar(50)
+  doctors Doctor[]
+
+  @@map("specialties")
+}
+
+model Language {
+  id      Int              @id @default(autoincrement()) @map("language_id")
+  name    String           @unique @map("language_name") @db.VarChar(50)
+  doctors DoctorLanguage[]
+
+  @@map("languages")
+}
+
+model DoctorLanguage {
+  doctorId   Int @map("doctor_id")
+  languageId Int @map("language_id")
+
+  doctor   Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  language Language @relation(fields: [languageId], references: [id], onDelete: Restrict)
+
+  @@id([doctorId, languageId])
+  @@map("doctor_languages")
+}
+
+model DoctorInsurance {
+  doctorId    Int @map("doctor_id")
+  insuranceId Int @map("insurance_id")
+
+  doctor    Doctor    @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  insurance Insurance @relation(fields: [insuranceId], references: [id], onDelete: Restrict)
+
+  @@id([doctorId, insuranceId])
+  @@map("doctor_insurances")
+}
+
+model DoctorEducation {
+  id          Int    @id @default(autoincrement()) @map("education_id")
+  doctorId    Int    @map("doctor_id")
+  degree      String @map("education_degree") @db.VarChar(100)
+  institution String @map("education_institution") @db.VarChar(150)
+  year        Int    @map("education_year")
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([doctorId])
+  @@map("doctor_educations")
+}
+
+// ───────────────────────── Clinics & locations ───────────────────────
+
+model Clinic {
+  id           Int      @id @default(autoincrement()) @map("clinic_id")
+  name         String   @unique @map("clinic_name") @db.VarChar(150)
+  clinicTypeId Int      @map("clinic_type_id")
+  cityId       Int      @map("city_id")
+  address      String   @map("clinic_address") @db.VarChar(255)
+  phone        String?  @map("clinic_phone") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  clinicType ClinicType @relation(fields: [clinicTypeId], references: [id], onDelete: Restrict)
+  city       City       @relation(fields: [cityId], references: [id], onDelete: Restrict)
+  doctors    Doctor[]
+
+  @@map("clinics")
+}
+
+model ClinicType {
+  id      Int      @id @default(autoincrement()) @map("clinic_type_id")
+  desc    String   @unique @map("clinic_type_desc") @db.VarChar(50)
+  clinics Clinic[]
+
+  @@map("clinic_types")
+}
+
+model City {
+  id            Int    @id @default(autoincrement()) @map("city_id")
+  governorateId Int    @map("governorate_id")
+  name          String @map("city_name") @db.VarChar(100)
+
+  governorate Governorate @relation(fields: [governorateId], references: [id], onDelete: Restrict)
+  clinics     Clinic[]
+  doctors     Doctor[]
+  patients    Patient[]
+
+  @@unique([governorateId, name])
+  @@map("cities")
+}
+
+model Governorate {
+  id     Int    @id @default(autoincrement()) @map("governorate_id")
+  name   String @unique @map("governorate_name") @db.VarChar(50)
+  cities City[]
+
+  @@map("governorates")
+}
+
+// ───────────────────────────── Schedules ─────────────────────────────
+
+model WorkingHours {
+  id       Int      @id @default(autoincrement()) @map("working_hours_id")
+  doctorId Int      @map("doctor_id")
+  weekday  Weekday  @map("working_hours_weekday")
+  enabled  Boolean  @default(true) @map("working_hours_enabled")
+  start    DateTime @map("working_hours_start") @db.Time(0)
+  end      DateTime @map("working_hours_end") @db.Time(0)
+
+  doctor Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  breaks Break[]
+
+  @@unique([doctorId, weekday]) // at most one row per day → 0..7 per doctor
+  @@map("working_hours")
+}
+
+model Break {
+  id             Int      @id @default(autoincrement()) @map("break_id")
+  workingHoursId Int      @map("working_hours_id")
+  start          DateTime @map("break_start") @db.Time(0)
+  end            DateTime @map("break_end") @db.Time(0)
+
+  workingHours WorkingHours @relation(fields: [workingHoursId], references: [id], onDelete: Cascade)
+
+  @@index([workingHoursId])
+  @@map("breaks")
+}
+
+model BlockedDate {
+  id       Int      @id @default(autoincrement()) @map("blocked_date_id")
+  doctorId Int      @map("doctor_id")
+  date     DateTime @map("blocked_date_date") @db.Date
+  note     String?  @map("blocked_date_note") @db.VarChar(200)
+
+  doctor Doctor @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, date])
+  @@map("blocked_dates")
+}
+
+// ──────────────────────────── Appointments ───────────────────────────
+
+model Appointment {
+  id                  Int             @id @default(autoincrement()) @map("appointment_id")
+  patientId           Int             @map("patient_id")
+  doctorId            Int             @map("doctor_id")
+  date                DateTime        @map("appointment_date") @db.Date
+  time                DateTime        @map("appointment_time") @db.Time(0)
+  duration            Int             @map("appointment_duration") // minutes
+  type                AppointmentType @default(in_person) @map("appointment_type")
+  reason              String?         @map("appointment_reason") @db.VarChar(500)
+  statusId            Int             @map("status_id")
+  statusNote          String?         @map("appointment_status_note") @db.VarChar(300)
+  lateCancellation    Boolean         @default(false) @map("appointment_late_cancellation")
+  rescheduledFromDate DateTime?       @map("rescheduled_from_date") @db.Date
+  rescheduledFromTime DateTime?       @map("rescheduled_from_time") @db.Time(0)
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  patient      Patient              @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor       Doctor               @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  status       AppointmentStatus    @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  history      AppointmentHistory[]
+  prescription Prescription?
+
+  @@index([doctorId, date])
+  @@index([patientId, date])
+  @@map("appointments")
+}
+
+model AppointmentStatus {
+  id           Int                  @id @default(autoincrement()) @map("status_id")
+  name         String               @unique @map("status_name") @db.VarChar(20) // pending, confirmed, declined, cancelled, completed, no_show
+  appointments Appointment[]
+  history      AppointmentHistory[]
+
+  @@map("appointment_statuses")
+}
+
+model AppointmentHistory {
+  id            Int      @id @default(autoincrement()) @map("history_id")
+  appointmentId Int      @map("appointment_id")
+  statusId      Int      @map("status_id")
+  changedById   Int?     @map("changed_by_id") // null = system
+  note          String?  @map("history_note") @db.VarChar(300)
+  changedAt     DateTime @default(now()) @map("changed_at") @db.Timestamptz(3)
+
+  appointment Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  status      AppointmentStatus @relation(fields: [statusId], references: [id], onDelete: Restrict)
+  changedBy   User?             @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([appointmentId])
+  @@map("appointment_histories")
+}
+
+// ──────────────────────────── Prescriptions ──────────────────────────
+
+model Prescription {
+  id            Int       @id @default(autoincrement()) @map("prescription_id")
+  code          String    @unique @map("prescription_code") @db.VarChar(20) // RX-XXXX-NN
+  doctorId      Int       @map("doctor_id")
+  patientId     Int       @map("patient_id")
+  appointmentId Int?      @unique @map("appointment_id")
+  date          DateTime  @default(now()) @map("prescription_date") @db.Date
+  diagnosis     String    @map("prescription_diagnosis") @db.VarChar(200)
+  followUpDate  DateTime? @map("prescription_follow_up_date") @db.Date
+  followUpNote  String?   @map("prescription_follow_up_note") @db.VarChar(300)
+  notes         String?   @map("prescription_notes") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  doctor      Doctor             @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  patient     Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  appointment Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  items       PrescriptionItem[]
+
+  @@index([patientId])
+  @@index([doctorId])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id             Int     @id @default(autoincrement()) @map("item_id")
+  prescriptionId Int     @map("prescription_id")
+  medicationId   Int?    @map("medication_id") // null = drug typed by the doctor, not in the list
+  medicationName String  @map("item_medication_name") @db.VarChar(150)
+  dose           String  @map("item_dose") @db.VarChar(50)
+  frequencyId    Int     @map("frequency_id")
+  duration       String  @map("item_duration") @db.VarChar(50)
+  instructions   String? @map("item_instructions") @db.VarChar(300)
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medication   Medication?  @relation(fields: [medicationId], references: [id], onDelete: SetNull)
+  frequency    Frequency    @relation(fields: [frequencyId], references: [id], onDelete: Restrict)
+
+  @@index([prescriptionId])
+  @@map("prescription_items")
+}
+
+model Medication {
+  id            Int                @id @default(autoincrement()) @map("medication_id")
+  name          String             @unique @map("medication_name") @db.VarChar(150)
+  allergenGroup String?            @map("medication_allergen_group") @db.VarChar(100)
+  items         PrescriptionItem[]
+
+  @@map("medications")
+}
+
+model Frequency {
+  id    Int                @id @default(autoincrement()) @map("frequency_id")
+  desc  String             @unique @map("frequency_desc") @db.VarChar(100)
+  items PrescriptionItem[]
+
+  @@map("frequencies")
+}

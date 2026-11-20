@@ -1,0 +1,31 @@
+{
+  "name": "clinicfinder-api",
+  "version": "1.0.0",
+  "description": "ClinicFinder REST API",
+  "main": "src/server.js",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "db:test": "node scripts/test-db.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "prisma": "^7.10.1"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "dotenv": "^18.0.10",
+    "pg": "^8.23.1"
+  },
+    "engines": {
+    "node": ">=22.18"
+  }
+}
