@@ -7,10 +7,16 @@ import { publicUser } from './serializers';
 import { email as vEmail, password as vPassword, lebanesePhone, normalizeLebanesePhone, licenseNumber, required, validate } from '../lib/validators';
 import { defaultSchedule } from '../lib/schedule';
 import { citiesOf } from '../lib/constants';
+import { isApiConfigured } from './http';
+import * as api from './api/authApi';
+
+// When VITE_API_URL is set, sign-in, sign-up and the session go to clinicfinder-api.
+const useApi = isApiConfigured();
 
 const findByEmail = (db, email) => db.users.find((u) => u.email.toLowerCase() === String(email).trim().toLowerCase());
 
 export function login({ email, password, remember = false }) {
+  if (useApi) return api.login({ email, password, remember });
   return request((db) => {
     const errors = validate({ email, password }, { email: vEmail, password: (v) => required(v, 'Password') });
     if (Object.keys(errors).length) throw new ApiError(tx('Please fix the highlighted fields.'), 422, errors);
@@ -28,6 +34,7 @@ export function login({ email, password, remember = false }) {
 }
 
 export function logout() {
+  if (useApi) return api.logout();
   return request((db) => {
     const t = getToken();
     if (t) delete db.sessions[t];
@@ -38,6 +45,7 @@ export function logout() {
 
 /** Current session user, or null. */
 export function me() {
+  if (useApi) return api.me();
   return request((db) => {
     const user = currentUser(db);
     if (!user && getToken()) setToken(null);
@@ -50,6 +58,7 @@ export function me() {
  * Doctor fields: specialtyId, licenseNumber, governorate, city
  */
 export function signup(data) {
+  if (useApi) return api.signup(data);
   return request((db) => {
     const role = data.role === 'doctor' ? 'doctor' : 'patient';
     const schema = {

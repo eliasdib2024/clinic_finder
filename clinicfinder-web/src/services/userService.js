@@ -1,6 +1,8 @@
 import { tx } from '../lib/i18n';
 // The signed-in user's own account: profile, health details, settings, notifications.
 import { ApiError, request, requireUser, setToken, logActivity } from './db';
+import { isApiConfigured } from './http';
+import * as api from './api/authApi';
 import { publicUser } from './serializers';
 import { email as vEmail, lebanesePhone, normalizeLebanesePhone, required } from '../lib/validators';
 import { BLOOD_TYPES, GOVERNORATES, citiesOf } from '../lib/constants';
@@ -76,6 +78,7 @@ export function updateHealth(patch) {
 
 /** Second step of patient sign-up: saves the health profile and unlocks the app. */
 export function completeOnboarding(patch) {
+  if (isApiConfigured()) return api.completeOnboarding(patch);
   return request((db) => {
     const user = requireUser(db, ['patient']);
     const errors = healthErrors(db, patch, { complete: true });

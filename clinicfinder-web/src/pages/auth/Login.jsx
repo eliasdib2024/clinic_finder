@@ -6,6 +6,7 @@ import { Button, Field, Input, PasswordInput, Checkbox } from '../../components/
 import { useAuth, homeFor } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useDocumentTitle } from '../../hooks';
+import { isApiConfigured } from '../../services/http';
 import { email as vEmail, required, validate } from '../../lib/validators';
 
 const DEMO = [
@@ -63,12 +64,14 @@ export default function Login() {
           <Input type="email" icon={Mail} value={values.email} onChange={set('email')} autoComplete="email" placeholder={tx('you@example.com')} />
         </Field>
         <Field label={tx('Password')} error={errors.password} required aside={<Link to="/forgot-password" className="small" style={{ fontWeight: 600 }}>{tx('Forgot password?')}</Link>}>
-          <PasswordInput icon={Lock} value={values.password} onChange={set('password')} autoComplete="current-password" placeholder={tx('Enter your password')} />
+          <PasswordInput icon={Lock} value={values.password} onChange={set('password')} autoComplete="current-password" />
         </Field>
         <Checkbox label={tx('Keep me signed in on this device')} checked={values.remember} onChange={set('remember')} />
         {formError && <div className="banner danger" role="alert">{formError}</div>}
         <Button type="submit" size="lg" block loading={busy}>{tx('Sign in')}</Button>
       </form>
+      {/* Demo accounts exist only in the browser mock, not in the real database */}
+      {!isApiConfigured() && (
       <div className="demo-box">
         <div className="small strong" style={{ marginBottom: 4 }}>{tx('Try a demo account')}</div>
         <p className="tiny muted" style={{ marginBottom: 10 }}>{tx('Demo sign-in runs in your browser only — it isn’t production security.')}</p>
@@ -76,6 +79,7 @@ export default function Login() {
           {DEMO.map((d) => <Button key={d.role} variant="secondary" size="sm" icon={d.icon} disabled={busy} onClick={() => { setValues({ email: d.email, password: d.password, remember: true }); doLogin({ email: d.email, password: d.password, remember: true }); }}>{tx(d.role)}</Button>)}
         </div>
       </div>
+      )}
       <p className="small muted" style={{ textAlign: 'center' }}>{tx('New to ClinicFinder?')}{' '}<Link to="/signup" className="strong">{tx('Create an account')}</Link></p>
     </div>
   );

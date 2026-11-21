@@ -1,0 +1,158 @@
+### ClinicFinder API – account requests
+### VS Code: install the "REST Client" extension, then click "Send Request" above each request.
+### Run in order: the tokens from sign-up / sign-in are reused by the requests below them.
+
+@base = http://localhost:3000/api/v1
+
+### Health check (API + database)
+GET http://localhost:3000/health
+
+### Reference data for the forms (specialties, governorates + cities, insurances, blood types, languages)
+GET {{base}}/lookups
+
+########## PATIENT ##########
+
+### Create a patient account -> 201 { token, user }
+# @name patientSignup
+POST {{base}}/patients
+Content-Type: application/json
+
+{ "name": "Nadine Khalil", "email": "nadine@example.com", "phone": "03 123 456",
+  "password": "Secret#123", "acceptTerms": true }
+
+### Invalid data -> 422 with every problem listed
+POST {{base}}/patients
+Content-Type: application/json
+
+{ "name": "N", "email": "not-an-email", "phone": "123", "password": "weak", "acceptTerms": false }
+
+### Same email again -> 409
+POST {{base}}/patients
+Content-Type: application/json
+
+{ "name": "Nadine K", "email": "NADINE@example.com", "phone": "71 123 456",
+  "password": "Secret#123", "acceptTerms": true }
+
+### Sign in as the patient
+# @name patientLogin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "nadine@example.com", "password": "Secret#123" }
+### Step 2: health profile (ids come from GET /lookups) -> onboarding = done
+PUT {{base}}/patients/me/health-profile
+Authorization: Bearer {{patientLogin.response.body.token}}
+Content-Type: application/json
+
+{ "dob": "1990-05-14", "cityId": 2, "bloodTypeId": 1, "insuranceId": 1, "insuranceNumber": "NS-4411",
+  "allergies": ["Penicillin"], "noKnownAllergies": false }
+
+### Change part of the health profile later
+PATCH {{base}}/patients/me/health-profile
+Authorization: Bearer {{patientLogin.response.body.token}}
+Content-Type: application/json
+
+{ "insuranceId": null }
+
+### My patient account
+GET {{base}}/patients/me
+Authorization: Bearer {{patientLogin.response.body.token}}
+
+########## DOCTOR ##########
+
+### Create a doctor account -> 201, verification = pending
+# @name doctorSignup
+POST {{base}}/doctors
+Content-Type: application/json
+
+{ "name": "Lina Khoury", "email": "lina@clinic.lb", "phone": "+961 71 222 333", "password": "Secret#123",
+  "specialtyId": 2, "licenseNumber": "18342", "cityId": 2, "acceptTerms": true }
+
+########## SIGN IN ##########
+
+### Wrong password -> 401 (same message as an unknown email)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@clinicfinder.lb", "password": "wrong" }
+
+### Administrator (account created by npm run db:seed)
+# @name adminLogin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@clinicfinder.lb", "password": "Change-Me-Now#2026", "remember": true }
+
+### Who am I?
+GET {{base}}/auth/me
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+########## ADMIN: DOCTOR APPLICATIONS ##########
+
+### Pending applications
+GET {{base}}/doctors?verification=pending
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+### One application
+GET {{base}}/doctors/{{doctorSignup.response.body.user.doctor.id}}
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+### Approve
+PATCH {{base}}/doctors/{{doctorSignup.response.body.user.doctor.id}}/verification
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "approved" }
+
+### Reject (a reason is required)
+PATCH {{base}}/doctors/{{doctorSignup.response.body.user.doctor.id}}/verification
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "rejected", "reason": "The license number does not match the Order's register." }
+
+########## ADMIN: USERS ##########
+
+
+### List users (filters: role, status, search, page, pageSize)
+### List users
+# @name listUsers
+GET {{base}}/users?role=patient&search=nadine
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+GET {{base}}/users/{{listUsers.response.body.$.items[0].id}}
+
+### One user
+GET {{base}}/users/{{patientLogin.response.body.user.id}}
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+### Suspend (reason required) – the user is signed out at once
+PATCH {{base}}/users/{{patientLogin.response.body.user.id}}/status
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "suspended", "reason": "Repeated no-shows" }
+
+### Reactivate
+PATCH {{base}}/users/{{patientLogin.response.body.user.id}}/status
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "active" }
+
+### Delete -> 204 (409 if the account has appointments or prescriptions: deactivate it instead)
+DELETE {{base}}/users/{{patientLogin.response.body.user.id}}
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+########## MY ACCOUNT (any role) ##########
+
+### My account
+GET {{base}}/users/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+
+### Update my settings
+PATCH {{base}}/users/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+Content-Type: application/json
+
+{ "language": "fr", "notifications": { "sms": true } }
