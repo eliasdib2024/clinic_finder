@@ -104,7 +104,10 @@ model User {
   phone                  String       @map("user_phone") @db.VarChar(20)
   passwordHash           String       @map("user_password_hash") @db.VarChar(255)
   emailVerified          Boolean      @default(false) @map("user_email_verified")
-  emailVerificationToken String?      @unique @map("email_verification_token") @db.VarChar(255)
+  emailVerifiedAt        DateTime?    @map("user_email_verified_at") @db.Timestamptz(3)
+  emailVerificationCode     String?   @map("email_verification_code") @db.VarChar(255) // HMAC of the 6-digit code, never the code
+  emailVerificationExpiry   DateTime? @map("email_verification_expiry") @db.Timestamptz(3)
+  emailVerificationAttempts Int       @default(0) @map("email_verification_attempts")
   role                   UserRole     @map("user_role")
   status                 UserStatus   @default(active) @map("user_status")
   statusReason           String?      @map("user_status_reason") @db.VarChar(300)

@@ -100,7 +100,9 @@ export async function resetPassword(resetToken, newPassword) {
     throw validationFailed([{ field: 'password', message: 'Choose a password different from your current one.' }]);
   }
 
-  const done = await usersRepository.completePasswordReset(user.id, user.resetCode, await hashPassword(newPassword));
+  const done = await usersRepository.completePasswordReset(
+    user.id, user.resetCode, await hashPassword(newPassword), user.emailVerified ? null : new Date(),
+  );
   if (!done) throw new HttpError(400, SESSION_EXPIRED);   // used a moment ago by another request
 
   await Promise.all([

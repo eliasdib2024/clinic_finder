@@ -68,7 +68,10 @@ export function toUserDto(u) {
 export function toDoctorApplicationDto(d) {
   return {
     ...toDoctorDto(d),
-    user: d.user && { id: d.user.id, name: d.user.fullName, email: d.user.email, phone: d.user.phone, status: d.user.status, createdAt: d.user.createdAt },
+    user: d.user && {
+      id: d.user.id, name: d.user.fullName, email: d.user.email, emailVerified: d.user.emailVerified,
+      phone: d.user.phone, status: d.user.status, createdAt: d.user.createdAt,
+    },
     reviewedBy: d.reviewedBy ? { id: d.reviewedBy.id, name: d.reviewedBy.fullName } : null,
   };
 }

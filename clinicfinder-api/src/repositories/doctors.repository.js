@@ -5,7 +5,7 @@ import { USER_PROFILE_INCLUDE } from './includes.js';
 const DOCTOR_WITH_USER = {
   specialty: true,
   city: { include: { governorate: true } },
-  user: { select: { id: true, fullName: true, email: true, phone: true, status: true, createdAt: true } },
+  user: { select: { id: true, fullName: true, email: true, emailVerified: true, phone: true, status: true, createdAt: true } },
   reviewedBy: { select: { id: true, fullName: true } },
 };
 

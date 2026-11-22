@@ -128,6 +128,20 @@ export function signup(data) {
   });
 }
 
+/**
+ * Email verification — API only. The demo backend has no emails, so its accounts never have
+ * emailVerified === false and never reach the verification screen.
+ */
+export function verifyEmail(code) {
+  if (useApi) return api.verifyEmail(code);
+  return Promise.reject(new ApiError(tx('Email verification needs the API.'), 400));
+}
+
+export function resendVerification() {
+  if (useApi) return api.resendVerification();
+  return Promise.reject(new ApiError(tx('Email verification needs the API.'), 400));
+}
+
 const CODE_TTL = 10 * 60 * 1000;
 
 /** Step 1 — request a 6-digit code. The demo returns it so the UI can show it in a toast (the API emails it). */

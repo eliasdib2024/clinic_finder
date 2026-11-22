@@ -153,6 +153,32 @@ src/
 
 ---
 
+## Email verification
+
+Every new patient or doctor gets a 6-digit code by email right after sign-up. The account works straight away; the code confirms the address.
+
+| Step | Endpoint | Auth | Body | Success |
+|---|---|---|---|---|
+| Confirm the address | `POST /auth/verify-email` | Bearer token | `{ code }` | `200 { message, user }` (`user.emailVerified: true`) |
+| Get a new code | `POST /auth/resend-verification` | Bearer token | – | `202 { message, expiresInMinutes, resendAfterSeconds }` |
+
+`user.emailVerified` is in every user object (`/auth/me`, sign-in, sign-up), so the frontend knows when to show the code screen.
+
+**Rules**
+
+- The code is valid for **15 minutes**, **5 attempts**. A new code replaces the old one; codes are at least **60 seconds** apart (`429` with the wait time) and at most 5 per hour per account.
+- Only an HMAC of the code is stored (`users.email_verification_code`). The HMAC includes the purpose, so a password reset code never works as a verification code.
+- Errors: `422` wrong / expired / too many attempts (message under `errors[0]` for the `code` field), `409` already verified on resend. Verifying an already verified address answers `200`.
+- **A completed password reset also verifies the address**: the reset code was read from the same inbox.
+- **An admin cannot approve a doctor** whose email is not verified (`409`). Doctor applications show `user.emailVerified`.
+- For future routes that need a confirmed address (e.g. booking), add `requireVerifiedEmail` after `authenticate`. It answers `403` with `errors[0].field = "emailVerified"`.
+
+**Database:** `user_email_verified`, `user_email_verified_at`, `email_verification_code`, `email_verification_expiry`, `email_verification_attempts` on `users` (migration `email_verification_code`). Administrators are verified by the seed script.
+
+**Files:** `routes/auth.routes.js` → `controllers/email-verification.controller.js` → `services/email-verification.service.js` → `repositories/users.repository.js`, plus `emails/templates.js` and `middleware/authenticate.js` (`requireVerifiedEmail`).
+
+---
+
 ## Forgot password
 
 Three public endpoints under `/api/v1/auth`. The frontend's 3-step "Forgot password" page calls them in order.

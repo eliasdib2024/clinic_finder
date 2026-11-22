@@ -40,6 +40,7 @@ export function mirrorUser(apiUser, { remember = true } = {}) {
       email,
       phone: apiUser.phone,
       status: apiUser.status,
+      emailVerified: apiUser.emailVerified,   // false → the guards send the user to /verify-email
       settings: { ...(user.settings || {}), language: apiUser.language, notifications: { ...apiUser.notifications } },
     });
     if (apiUser.role === 'patient') user.patient = patientFrom(apiUser.patient);

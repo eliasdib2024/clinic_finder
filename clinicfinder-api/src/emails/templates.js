@@ -14,6 +14,12 @@ const STRINGS = {
     resetIgnore: 'If you did not ask to reset your password, you can ignore this email. Your password stays the same, and nobody can change it without this code.',
     resetNever: 'ClinicFinder will never ask you for this code by phone, SMS or chat.',
     resetButton: 'Open the reset page',
+    verifySubject: 'Confirm your ClinicFinder email address',
+    verifyPreview: 'Your confirmation code. It expires in {m} minutes.',
+    verifyIntro: 'Welcome to ClinicFinder! To confirm that this email address is yours, enter this code in the app:',
+    verifyExpiry: 'The code expires in {m} minutes. You can ask for a new one from the app at any time.',
+    verifyIgnore: 'If you did not create a ClinicFinder account, you can ignore this email.',
+    verifyButton: 'Open ClinicFinder',
     changedSubject: 'Your ClinicFinder password was changed',
     changedPreview: 'Your password was just changed.',
     changedIntro: 'The password of your ClinicFinder account was changed on {when} (Beirut time). For your security, you were signed out on every device.',
@@ -32,6 +38,12 @@ const STRINGS = {
     resetIgnore: 'Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail. Votre mot de passe reste inchangé et personne ne peut le modifier sans ce code.',
     resetNever: 'ClinicFinder ne vous demandera jamais ce code par téléphone, SMS ou messagerie.',
     resetButton: 'Ouvrir la page de réinitialisation',
+    verifySubject: 'Confirmez votre adresse e-mail ClinicFinder',
+    verifyPreview: 'Votre code de confirmation. Il expire dans {m} minutes.',
+    verifyIntro: 'Bienvenue sur ClinicFinder ! Pour confirmer que cette adresse e-mail vous appartient, saisissez ce code dans l’application :',
+    verifyExpiry: 'Le code expire dans {m} minutes. Vous pouvez en demander un nouveau depuis l’application à tout moment.',
+    verifyIgnore: 'Si vous n’avez pas créé de compte ClinicFinder, ignorez cet e-mail.',
+    verifyButton: 'Ouvrir ClinicFinder',
     changedSubject: 'Votre mot de passe ClinicFinder a été modifié',
     changedPreview: 'Votre mot de passe vient d’être modifié.',
     changedIntro: 'Le mot de passe de votre compte ClinicFinder a été modifié le {when} (heure de Beyrouth). Par sécurité, vous avez été déconnecté de tous vos appareils.',
@@ -50,6 +62,12 @@ const STRINGS = {
     resetIgnore: 'إذا لم تطلب إعادة تعيين كلمة المرور، يمكنك تجاهل هذه الرسالة. تبقى كلمة مرورك كما هي، ولا يمكن لأحد تغييرها من دون هذا الرمز.',
     resetNever: 'لن تطلب منك ClinicFinder هذا الرمز أبدًا عبر الهاتف أو الرسائل القصيرة أو الدردشة.',
     resetButton: 'فتح صفحة إعادة التعيين',
+    verifySubject: 'تأكيد بريدك الإلكتروني في ClinicFinder',
+    verifyPreview: 'رمز التأكيد الخاص بك. تنتهي صلاحيته خلال {m} دقيقة.',
+    verifyIntro: 'مرحبًا بك في ClinicFinder! لتأكيد أن عنوان البريد الإلكتروني هذا يخصّك، أدخل هذا الرمز في التطبيق:',
+    verifyExpiry: 'تنتهي صلاحية الرمز خلال {m} دقيقة. يمكنك طلب رمز جديد من التطبيق في أي وقت.',
+    verifyIgnore: 'إذا لم تقم بإنشاء حساب في ClinicFinder، يمكنك تجاهل هذه الرسالة.',
+    verifyButton: 'فتح ClinicFinder',
     changedSubject: 'تم تغيير كلمة مرورك في ClinicFinder',
     changedPreview: 'تم تغيير كلمة مرورك للتو.',
     changedIntro: 'تم تغيير كلمة مرور حسابك في ClinicFinder بتاريخ {when} (بتوقيت بيروت). حفاظًا على أمانك، تم تسجيل خروجك من جميع الأجهزة.',
@@ -109,6 +127,28 @@ export function passwordResetCodeEmail({ name, language, code }) {
     text: [fill(t.hello, { name: firstName(name) }), '', t.resetIntro, '', `    ${code}`, '',
       fill(t.resetExpiry, { m }), '', t.resetIgnore, '', t.resetNever, '', link].join('\n'),
     html: layout(t, { preview: fill(t.resetPreview, { m }), body, button: { href: link, label: t.resetButton } }),
+  };
+}
+
+export function emailVerificationCodeEmail({ name, language, code }) {
+  const t = STRINGS[language] ?? STRINGS.en;
+  const m = config.emailVerification.codeTtlMinutes;
+  const link = config.appUrl;
+  const p = (s) => `<p style="margin:0 0 14px">${esc(s)}</p>`;
+  const body = [
+    p(fill(t.hello, { name: firstName(name) })),
+    p(t.verifyIntro),
+    `<p dir="ltr" style="margin:6px 0 18px;text-align:center;font-size:32px;letter-spacing:10px;font-weight:700;font-family:Consolas,Menlo,monospace;color:#0f5e57;background:#eef6f5;border-radius:10px;padding:14px 0">${esc(code)}</p>`,
+    p(fill(t.verifyExpiry, { m })),
+    p(t.verifyIgnore),
+    `<p style="margin:0;font-size:13px;color:#6b7a7e">${esc(t.resetNever)}</p>`,
+  ].join('\n');
+
+  return {
+    subject: t.verifySubject,
+    text: [fill(t.hello, { name: firstName(name) }), '', t.verifyIntro, '', `    ${code}`, '',
+      fill(t.verifyExpiry, { m }), '', t.verifyIgnore, '', t.resetNever, '', link].join('\n'),
+    html: layout(t, { preview: fill(t.verifyPreview, { m }), body, button: { href: link, label: t.verifyButton } }),
   };
 }
 

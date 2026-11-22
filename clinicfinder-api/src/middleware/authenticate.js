@@ -1,4 +1,4 @@
-import { unauthorized, forbidden } from '../errors/http-error.js';
+import { HttpError, unauthorized, forbidden } from '../errors/http-error.js';
 import { config } from '../config/env.js';
 import { verifyAccessToken, passwordVersion } from '../utils/jwt.js';
 import * as usersRepository from '../repositories/users.repository.js';
@@ -27,6 +27,14 @@ export async function authenticate(req, res, next) {
   }
   if (account.status !== 'active') return next(forbidden(`This account is not active. Contact ${config.supportEmail}.`));
 
-  req.user = { id: account.id, role: account.role };
+  req.user = { id: account.id, role: account.role, emailVerified: account.emailVerified };
   next();
+}
+
+// Use after authenticate on routes that need a confirmed address (e.g. booking an appointment).
+// The frontend can recognise this 403 by its errors[0].field === 'emailVerified' and show the code screen.
+export function requireVerifiedEmail(req, res, next) {
+  if (req.user?.emailVerified) return next();
+  const message = 'Please confirm your email address first. Enter the code we emailed you, or ask for a new one.';
+  next(new HttpError(403, message, [{ field: 'emailVerified', message }]));
 }

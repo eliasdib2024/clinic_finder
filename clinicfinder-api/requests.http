@@ -197,3 +197,18 @@ POST {{base}}/auth/login
 Content-Type: application/json
 
 { "email": "nadine@example.com", "password": "NewSecret#456" }
+
+########## EMAIL VERIFICATION ##########
+### Sign up first (PATIENTS section): the response token is used below.
+### With MAIL_TRANSPORT=console the code is printed in the API terminal.
+
+### Confirm the address -> 200 { message, user } with user.emailVerified = true. Wrong code -> 422
+POST {{base}}/auth/verify-email
+Authorization: Bearer {{patientSignup.response.body.token}}
+Content-Type: application/json
+
+{ "code": "123456" }
+
+### Ask for a new code -> 202. Within 60 s of the last one -> 429. Already verified -> 409
+POST {{base}}/auth/resend-verification
+Authorization: Bearer {{patientSignup.response.body.token}}

@@ -7,6 +7,7 @@ import * as activity from '../repositories/activity.repository.js';
 import { hashPassword } from '../utils/password.js';
 import { toDoctorApplicationDto, page } from '../utils/serializers.js';
 import { sessionFor } from './auth.service.js';
+import { sendFirstCode } from './email-verification.service.js';
 
 const DEFAULT_FEE = 50; // USD – the doctor changes it in the practice profile
 
@@ -45,6 +46,7 @@ export async function register({ name, email, phone, password, specialtyId, lice
       title: 'Welcome to ClinicFinder', body: 'Your profile is under review. Complete your practice profile while you wait.',
       link: '/doctor/profile', kind: 'success',
     }),
+    sendFirstCode(user),   // email the code that confirms the address
   ]);
   return sessionFor(user);
 }
@@ -65,6 +67,10 @@ export async function review(adminId, id, { status, reason }) {
   const doctor = await doctorsRepository.findById(id);
   if (!doctor) throw notFound(`Doctor ${id}`);
   if (doctor.verificationStatus === status) throw conflict(`This application is already ${status}.`);
+  // Patients will contact and book this doctor: the address must be real before the profile goes public
+  if (status === 'approved' && !doctor.user.emailVerified) {
+    throw conflict('This doctor has not confirmed their email address yet. They need to enter the code we emailed them first.');
+  }
 
   const updated = await doctorsRepository.update(id, {
     verificationStatus: status,

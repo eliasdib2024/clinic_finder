@@ -93,6 +93,24 @@ export async function completeOnboarding(v) {
   } catch (err) { throw translated(err); }
 }
 
+// ---- Email verification (signed in: the code is emailed at sign-up) ----
+
+/** Confirms the address with the emailed code. Returns the updated user (emailVerified: true). */
+export async function verifyEmail(code) {
+  try {
+    const res = await http.post('/auth/verify-email', { code: String(code) });
+    return await mirrorUser(res.user);
+  } catch (err) { throw translated(err); }
+}
+
+/** Emails a new code. Resolves with { resendAfterSeconds, expiresInMinutes }. */
+export async function resendVerification() {
+  try {
+    const res = await http.post('/auth/resend-verification', {});
+    return { resendAfterSeconds: res.resendAfterSeconds, expiresInMinutes: res.expiresInMinutes };
+  } catch (err) { throw translated(err); }
+}
+
 // ---- Forgot password (public, no sign-in token needed) ----
 
 /** Step 1. Always resolves with the same answer, whether or not the email has an account. */

@@ -7,7 +7,7 @@
 import { mailer, printsToConsole } from '../config/mailer.js';
 import { config } from '../config/env.js';
 import { logger } from '../loggers/logger.js';
-import { passwordResetCodeEmail, passwordChangedEmail } from '../emails/templates.js';
+import { passwordResetCodeEmail, passwordChangedEmail, emailVerificationCodeEmail } from '../emails/templates.js';
 
 const log = logger.child({ module: 'mail' });
 
@@ -32,6 +32,10 @@ const inBackground = (fn) => { setImmediate(fn); };
 
 export function sendPasswordResetCode(user, code) {
   inBackground(() => deliver(user.email, passwordResetCodeEmail({ name: user.fullName, language: user.language, code }), 'password-reset-code'));
+}
+
+export function sendEmailVerificationCode(user, code) {
+  inBackground(() => deliver(user.email, emailVerificationCodeEmail({ name: user.fullName, language: user.language, code }), 'email-verification-code'));
 }
 
 export function sendPasswordChanged(user) {

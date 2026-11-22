@@ -19,4 +19,5 @@ ALTER TABLE "prescriptions"
   ADD CONSTRAINT "prescriptions_follow_up_check" CHECK ("prescription_follow_up_date" IS NULL OR "prescription_follow_up_date" > "prescription_date");
 
 ALTER TABLE "users"
-  ADD CONSTRAINT "users_reset_attempts_check" CHECK ("reset_code_attempts" >= 0);
+  ADD CONSTRAINT "users_reset_attempts_check" CHECK ("reset_code_attempts" >= 0),
+  ADD CONSTRAINT "users_email_verification_attempts_check" CHECK ("email_verification_attempts" >= 0);

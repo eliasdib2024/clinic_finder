@@ -93,4 +93,10 @@ export const config = Object.freeze({
     resendCooldownSeconds: 60, // minimum gap between two codes for the same account
     sessionTtlMinutes: 10,     // time to choose the new password once the code is verified
   },
+  // Email verification rules (code emailed at sign-up)
+  emailVerification: {
+    codeTtlMinutes: 15,        // the emailed code expires after 15 minutes
+    maxAttempts: 5,            // wrong codes allowed before a new code is needed
+    resendCooldownSeconds: 60, // minimum gap between two codes for the same account
+  },
 });

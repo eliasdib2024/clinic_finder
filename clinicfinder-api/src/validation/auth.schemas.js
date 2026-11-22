@@ -13,11 +13,15 @@ export const loginBody = z.object({
 // POST /auth/forgot-password
 export const forgotPasswordBody = z.object({ email }).strict();
 
+const sixDigitCode = z.string({ error: 'Enter the 6-digit code.' }).trim().regex(/^\d{6}$/, 'Enter all 6 digits.');
+
 // POST /auth/verify-reset-code
-export const verifyResetCodeBody = z.object({
-  email,
-  code: z.string({ error: 'Enter the 6-digit code.' }).trim().regex(/^\d{6}$/, 'Enter all 6 digits.'),
-}).strict();
+export const verifyResetCodeBody = z.object({ email, code: sixDigitCode }).strict();
+
+// ---- email verification (signed in) ----
+
+// POST /auth/verify-email
+export const verifyEmailBody = z.object({ code: sixDigitCode }).strict();
 
 // POST /auth/reset-password
 export const resetPasswordBody = z.object({

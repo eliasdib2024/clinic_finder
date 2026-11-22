@@ -1,6 +1,6 @@
 import { lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
-import { RequireAuth, RequireOnboarding, GuestOnly, RoleRedirect } from './routes/guards';
+import { RequireAuth, RequireEmailVerification, RequireOnboarding, GuestOnly, RoleRedirect } from './routes/guards';
 import { PublicLayout } from './components/layout/PublicLayout';
 import { AuthLayout } from './components/layout/AuthLayout';
 import { DashboardLayout } from './components/layout/DashboardLayout';
@@ -18,6 +18,7 @@ const Login = lazy(() => import('./pages/auth/Login'));
 const Signup = lazy(() => import('./pages/auth/Signup'));
 const ForgotPassword = lazy(() => import('./pages/auth/ForgotPassword'));
 const Welcome = lazy(() => import('./pages/auth/Welcome'));
+const VerifyEmail = lazy(() => import('./pages/auth/VerifyEmail'));
 
 const PatientOverview = lazy(() => import('./pages/patient/Overview'));
 const PatientAppointments = lazy(() => import('./pages/patient/Appointments'));
@@ -52,6 +53,11 @@ export default function App() {
         <Route path="login" element={<Login />} />
         <Route path="signup" element={<Signup />} />
         <Route path="forgot-password" element={<ForgotPassword />} />
+      </Route>
+
+      {/* After sign-up (and for any unconfirmed account): enter the code emailed to the user. */}
+      <Route element={<RequireEmailVerification><AuthLayout onboarding /></RequireEmailVerification>}>
+        <Route path="verify-email" element={<VerifyEmail />} />
       </Route>
 
       {/* Second step of patient sign-up: health profile. */}

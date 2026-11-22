@@ -7,6 +7,7 @@ import * as activity from '../repositories/activity.repository.js';
 import { hashPassword } from '../utils/password.js';
 import { toUserDto } from '../utils/serializers.js';
 import { sessionFor } from './auth.service.js';
+import { sendFirstCode } from './email-verification.service.js';
 
 // Step 1 of patient sign-up: create the account and sign the patient in
 export async function register({ name, email, phone, password }) {
@@ -24,6 +25,7 @@ export async function register({ name, email, phone, password }) {
       title: 'Welcome to ClinicFinder', body: 'Find a doctor near you and book in a few clicks.',
       link: '/patient/search', kind: 'success',
     }),
+    sendFirstCode(user),   // email the code that confirms the address
   ]);
   return sessionFor(user);
 }

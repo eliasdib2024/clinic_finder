@@ -59,3 +59,23 @@ export const resetPasswordLimiter = rateLimit({
   skipSuccessfulRequests: true,
   handler: tooMany('Too many attempts. Please wait 15 minutes and try again.'),
 });
+
+// ---- email verification (signed in, so limits are per account) ----
+// Code checks: 20 wrong codes per 15 minutes per account, on top of the 5 attempts each code allows
+export const verifyEmailLimiter = rateLimit({
+  ...common,
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `verify-email:${req.user.id}`,
+  handler: tooMany('Too many incorrect codes. Please wait 15 minutes and try again.'),
+});
+
+// New codes: 5 per hour per account (stops inbox flooding), on top of the 60-second gap between two codes
+export const resendVerificationLimiter = rateLimit({
+  ...common,
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  keyGenerator: (req) => `resend-verification:${req.user.id}`,
+  handler: tooMany('Too many codes were requested. Please try again in an hour.'),
+});

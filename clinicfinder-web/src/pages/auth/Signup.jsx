@@ -3,10 +3,11 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { UserRound, Stethoscope, Mail, Phone, Lock, ArrowLeft, BadgeCheck } from 'lucide-react';
 import { Button, Field, Input, PasswordInput, Select, Checkbox, PasswordStrength } from '../../components/ui';
-import { useAuth, homeFor } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { useCatalog } from '../../context/CatalogContext';
 import { useToast } from '../../context/ToastContext';
 import { useDocumentTitle } from '../../hooks';
+import { nextStepFor, needsEmailVerification } from '../../routes/guards';
 import { GOVERNORATES, citiesOf } from '../../lib/constants';
 import { email as vEmail, lebanesePhone, password as vPassword, confirmPassword, licenseNumber, required, validate } from '../../lib/validators';
 
@@ -52,9 +53,11 @@ export default function Signup() {
     setBusy(true);
     try {
       const user = await signup({ ...v, role });
-      toast.success(role === 'doctor' ? tx('Application submitted') : tx('Account created'), { body: role === 'doctor' ? tx('An administrator will verify your license shortly.') : tx('One more step: your health profile.') });
-      // Patients continue to step 2 (health profile); doctors land on their dashboard.
-      navigate(user.role === 'patient' ? '/welcome' : homeFor(user.role), { replace: true });
+      const body = needsEmailVerification(user) ? tx('We emailed you a 6-digit code to confirm your address.')
+        : role === 'doctor' ? tx('An administrator will verify your license shortly.') : tx('One more step: your health profile.');
+      toast.success(role === 'doctor' ? tx('Application submitted') : tx('Account created'), { body });
+      // Next: confirm the email (API), then patients fill in their health profile; doctors land on their dashboard.
+      navigate(nextStepFor(user), { replace: true });
     } catch (err) {
       if (err.fields) {
         setErrors(err.fields);
