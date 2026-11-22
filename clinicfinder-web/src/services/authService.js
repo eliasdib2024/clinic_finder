@@ -132,8 +132,9 @@ export function signup(data) {
 
 const CODE_TTL = 10 * 60 * 1000;
 
-/** Step 1 — request a 6-digit code. The demo returns it so the UI can show it in a toast (a real server emails it). */
+/** Step 1 — request a 6-digit code. The demo returns it so the UI can show it in a toast (the API emails it). */
 export function forgotPassword(email) {
+  if (useApi) return api.forgotPassword(email);
   return request((db) => {
     const err = vEmail(email);
     if (err) throw new ApiError(err, 422, { email: err });
@@ -145,8 +146,9 @@ export function forgotPassword(email) {
   });
 }
 
-/** Step 2 — verify the code. */
+/** Step 2 — verify the code. With the API it returns { resetToken } for step 3. */
 export function verifyResetCode(email, code) {
+  if (useApi) return api.verifyResetCode(email, code);
   return request((db) => {
     const entry = db.resetCodes[String(email).trim().toLowerCase()];
     if (!entry || entry.expires < Date.now()) throw new ApiError(tx('This code has expired. Request a new one.'), 410);
@@ -158,8 +160,9 @@ export function verifyResetCode(email, code) {
   });
 }
 
-/** Step 3 — set a new password. */
-export function resetPassword(email, code, newPassword) {
+/** Step 3 — set a new password. The API identifies the user by the reset token from step 2. */
+export function resetPassword(email, code, newPassword, resetToken) {
+  if (useApi) return api.resetPassword(resetToken, newPassword);
   return request((db) => {
     const key = String(email).trim().toLowerCase();
     const entry = db.resetCodes[key];

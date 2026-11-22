@@ -156,3 +156,44 @@ Authorization: Bearer {{doctorSignup.response.body.token}}
 Content-Type: application/json
 
 { "language": "fr", "notifications": { "sms": true } }
+
+########## FORGOT PASSWORD ##########
+### With MAIL_TRANSPORT=console the email (and its code) is printed in the API terminal.
+
+### Step 1: ask for a code -> 202 (the same answer whether or not the email has an account)
+POST {{base}}/auth/forgot-password
+Content-Type: application/json
+
+{ "email": "nadine@example.com" }
+
+### Unknown email -> the same 202 answer, but no email is sent
+POST {{base}}/auth/forgot-password
+Content-Type: application/json
+
+{ "email": "nobody@example.com" }
+
+### Step 2: check the code from the email -> 200 { resetToken, expiresInMinutes }
+### Replace 123456 with the code printed in the API terminal. Wrong code -> 422 (5 attempts per code)
+# @name verifyCode
+POST {{base}}/auth/verify-reset-code
+Content-Type: application/json
+
+{ "email": "nadine@example.com", "code": "123456" }
+
+### Step 3: set the new password -> 200. Every existing sign-in token stops working.
+POST {{base}}/auth/reset-password
+Content-Type: application/json
+
+{ "resetToken": "{{verifyCode.response.body.resetToken}}", "password": "NewSecret#456" }
+
+### The same reset token again -> 400 (one-time use)
+POST {{base}}/auth/reset-password
+Content-Type: application/json
+
+{ "resetToken": "{{verifyCode.response.body.resetToken}}", "password": "Another#789" }
+
+### Sign in with the new password -> 200
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "nadine@example.com", "password": "NewSecret#456" }

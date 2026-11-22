@@ -86,3 +86,31 @@ export async function completeOnboarding(v) {
     return await mirrorUser(user);
   } catch (err) { throw translated(err); }
 }
+
+// ---- Forgot password (public, no sign-in token needed) ----
+
+/** Step 1. Always resolves with the same answer, whether or not the email has an account. */
+export async function forgotPassword(email) {
+  try {
+    const res = await http.post('/auth/forgot-password', { email: String(email).trim() });
+    return { sent: true, resendAfterSeconds: res.resendAfterSeconds, expiresInMinutes: res.expiresInMinutes };
+  } catch (err) { throw translated(err); }
+}
+
+/** Step 2. Returns the short-lived reset token that step 3 needs. */
+export async function verifyResetCode(email, code) {
+  try {
+    const res = await http.post('/auth/verify-reset-code', { email: String(email).trim(), code: String(code) });
+    return { verified: true, resetToken: res.resetToken };
+  } catch (err) { throw translated(err); }
+}
+
+/** Step 3. The server signs out every session of this account; the user signs in again. */
+export async function resetPassword(resetToken, password) {
+  try {
+    await http.post('/auth/reset-password', { resetToken, password }, { fieldMap: { password: 'pw' } });
+    setApiToken(null);            // a token stored in this browser is no longer valid either
+    await closeMockSession();
+    return { ok: true };
+  } catch (err) { throw translated(err); }
+}

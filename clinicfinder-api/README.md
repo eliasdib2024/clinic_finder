@@ -63,6 +63,10 @@ Then edit `.env`:
 | `PORT` | Port the API listens on | `3000` |
 | `LOG_LEVEL` | `error`, `warn`, `info` or `debug` | `info` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://clinicfinder_user:change_me@localhost:5432/clinicfinder?schema=public` |
+| `APP_URL` | Frontend address, used for links in emails | `http://localhost:5173` |
+| `MAIL_TRANSPORT` | `console` (print emails in the terminal, development) or `smtp` (send them) | `console` |
+| `MAIL_FROM` | Sender shown in the inbox | `ClinicFinder <no-reply@clinicfinder.lb>` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | SMTP server, only for `MAIL_TRANSPORT=smtp` | see `.env.example` |
 
 > URL-encode special characters in the password (`@` → `%40`, `#` → `%23`, `/` → `%2F`).
 > **Never commit `.env`.** Only `.env.example` belongs in Git.
@@ -147,6 +151,33 @@ src/
 
 ---
 
+## Forgot password
+
+Three public endpoints under `/api/v1/auth`. The frontend's 3-step "Forgot password" page calls them in order.
+
+| Step | Endpoint | Body | Success |
+|---|---|---|---|
+| 1. Ask for a code | `POST /auth/forgot-password` | `{ email }` | `202` with the same message for every email |
+| 2. Check the code | `POST /auth/verify-reset-code` | `{ email, code }` | `200 { resetToken, expiresInMinutes }` |
+| 3. New password | `POST /auth/reset-password` | `{ resetToken, password }` | `200 { message }` |
+
+**How it is protected**
+
+- **No account discovery.** Step 1 gives the same answer, in the same time, for known, unknown, suspended or rate-limited emails (emails are sent in the background). Step 2 uses one message for a wrong, expired, used-up or unknown code.
+- **The code.** 6 digits from `crypto.randomInt`, emailed, valid for **10 minutes**, **5 attempts**. Only an HMAC-SHA256 of it (keyed with `PASSWORD_PEPPER`) is stored in `users.reset_code`, and it is compared in constant time. Requesting a new code replaces the old one; a second request within 60 seconds keeps the current code.
+- **The reset token.** Returned once the code is correct, valid for 10 minutes, and only able to set a new password. It is signed with a separate key, so it can't be used as a sign-in token (and the reverse), and it is tied to the code, so it works once.
+- **The new password.** Same rules as sign-up, must differ from the current one, stored as `bcrypt(HMAC-SHA256(password, PASSWORD_PEPPER))`. The code is cleared in the same database update, so two requests can't both use it.
+- **Every session is signed out.** Sign-in tokens carry a fingerprint of the password hash; after the change, all older tokens get `401 Your password was changed`.
+- **Rate limits.** Code requests: 10 per 15 min per IP and 5 per hour per email. Wrong codes: 20 per 15 min per IP. New-password attempts: 10 per 15 min per IP.
+- **Notices.** A "your password was changed" email, an in-app notification, and an entry in the admin activity log.
+- **Logs.** Codes, reset tokens and passwords are redacted. With `MAIL_TRANSPORT=console` (development only, refused in production) the email itself is printed so you can test without a mail account.
+
+**Files:** `routes/auth.routes.js` → `validation/auth.schemas.js` → `controllers/password-reset.controller.js` → `services/password-reset.service.js` → `repositories/users.repository.js`, plus `services/mail.service.js`, `emails/templates.js` (English, French, Arabic), `config/mailer.js`, `utils/one-time-code.js` and `utils/jwt.js`.
+
+**Try it:** the *FORGOT PASSWORD* section of `requests.http`. With `MAIL_TRANSPORT=console`, copy the code from the API terminal.
+
+---
+
 ## Database conventions
 
 - **Tables** are plural and snake_case: `users`, `doctor_languages`, `appointment_histories`.
@@ -188,6 +219,7 @@ Never edit a migration that has already been applied or shared. Create a new one
 
 - **Migrations on deploy:** run `npm run db:deploy` (`prisma migrate deploy`). Never use `migrate dev` in production.
 - **Logs:** Pino writes JSON to stdout, and Elastic Beanstalk streams it to CloudWatch Logs.
+- **Email (Amazon SES):** verify the `clinicfinder.lb` domain in SES (add the DKIM and SPF DNS records it gives you), request production access (new SES accounts can only send to verified addresses), then create **SMTP credentials** in the SES console and set `MAIL_TRANSPORT=smtp`, `SMTP_HOST=email-smtp.<region>.amazonaws.com`, `SMTP_PORT=587`, `SMTP_USER` and `SMTP_PASS`. The API refuses to start in production with `MAIL_TRANSPORT=console`.
 
 ---
 
@@ -201,6 +233,9 @@ Never edit a migration that has already been applied or shared. Create a new one
 | `Can't reach database server at localhost:5432` | PostgreSQL isn't running, or the host, port or password in `DATABASE_URL` is wrong. |
 | `Cannot find module '../generated/prisma/client.ts'` | Run `npm run db:generate`. |
 | `SyntaxError` when importing `client.ts` | Upgrade Node.js to 22.18 or newer. |
+| No reset email arrives (development) | With `MAIL_TRANSPORT=console` nothing is sent: the email and its code are printed in the API terminal. |
+| No reset email arrives (SMTP) | Check the API log for `email could not be sent`. On SES, the sender domain must be verified and the account out of the sandbox. With Gmail, use an app password, not your normal password. |
+| `401 Your password was changed. Please sign in again.` | Expected after a password reset: every older session is signed out. Sign in again. |
 | Raw query times are off by 2 hours | Run `ALTER DATABASE clinicfinder SET timezone TO 'UTC';` and reconnect. |
 
 ---
