@@ -1,0 +1,931 @@
+openapi: 3.1.0
+info:
+  title: ClinicFinder API
+  version: 1.0.0
+  description: |
+    REST API of **ClinicFinder**: find doctors and clinics in Lebanon, book appointments, digital prescriptions.
+
+    **Sign in:** call `POST /auth/login` (or create an account), copy the `token` from the answer,
+    click **Authorize** above and paste it. Every request marked with a lock then sends
+    `Authorization: Bearer <token>`.
+
+    **Errors** always use RFC 9457 problem details (`application/problem+json`). When fields are wrong,
+    `errors` lists every problem with the field it belongs to.
+
+    **Ids** for cities, specialties, insurances, languages, genders and clinics come from `GET /lookups`.
+  contact: { name: ClinicFinder support, email: support@clinicfinder.lb }
+servers:
+  - url: http://localhost:3000/api/v1
+    description: local development
+
+tags:
+  - name: Lookups
+    description: Reference data for the forms (public)
+  - name: Auth
+    description: Sign in and the current user
+  - name: Email verification
+    description: Confirm the email address with a 6-digit code (signed in)
+  - name: Password reset
+    description: Forgot password, in three steps (public)
+  - name: Patients
+    description: Patient sign-up and health profile
+  - name: Doctors
+    description: Doctor sign-up, practice profile, and verification by an administrator
+  - name: Users
+    description: The signed-in user's account (all roles) and account administration
+
+paths:
+  # ───────────────────────────────────────────── Lookups
+  /lookups:
+    get:
+      tags: [Lookups]
+      summary: All reference data used by the forms
+      security: []
+      responses:
+        "200":
+          description: Specialties, governorates with their cities, insurances, blood types, languages, genders, clinics
+          content: { application/json: { schema: { $ref: "#/components/schemas/Lookups" } } }
+
+  # ───────────────────────────────────────────── Auth
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in (any role)
+      description: |
+        Wrong email and wrong password get the same 401 message. After 10 failed attempts for one email
+        (or 50 from one network) in 15 minutes, the answer is 429.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginInput" }
+            example: { email: admin@clinicfinder.lb, password: "Change-Me-Now#2026", remember: true }
+      responses:
+        "200": { $ref: "#/components/responses/Session" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: The signed-in user
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  # ───────────────────────────────────────────── Email verification
+  /auth/verify-email:
+    post:
+      tags: [Email verification]
+      summary: Confirm the email address with the 6-digit code
+      description: The code expires after 15 minutes; 5 wrong codes invalidate it (ask for a new one).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailInput" }
+            example: { code: "482913" }
+      responses:
+        "200":
+          description: Email confirmed (also when it was already confirmed)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, user]
+                properties:
+                  message: { type: string, examples: ["Your email address is confirmed."] }
+                  user: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /auth/resend-verification:
+    post:
+      tags: [Email verification]
+      summary: Email a new code (one every 60 seconds)
+      description: The new code replaces the previous one.
+      responses:
+        "202": { $ref: "#/components/responses/CodeSent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  # ───────────────────────────────────────────── Password reset
+  /auth/forgot-password:
+    post:
+      tags: [Password reset]
+      summary: "Step 1: email a 6-digit reset code"
+      description: Always the same 202 answer, whether or not the email has an account.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ForgotPasswordInput" }
+            example: { email: nadine@example.com }
+      responses:
+        "202": { $ref: "#/components/responses/CodeSent" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /auth/verify-reset-code:
+    post:
+      tags: [Password reset]
+      summary: "Step 2: check the code and get a short-lived reset token"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyResetCodeInput" }
+            example: { email: nadine@example.com, code: "482913" }
+      responses:
+        "200":
+          description: Code accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resetToken, expiresInMinutes]
+                properties:
+                  resetToken: { type: string, description: Send it to step 3. Valid once. }
+                  expiresInMinutes: { type: integer, examples: [10] }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /auth/reset-password:
+    post:
+      tags: [Password reset]
+      summary: "Step 3: choose the new password"
+      description: Signs the user out on every device. Also confirms the email address.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordInput" }
+      responses:
+        "200": { $ref: "#/components/responses/Message" }
+        "400":
+          description: The reset token is invalid, expired or already used
+          content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  # ───────────────────────────────────────────── Patients
+  /patients:
+    post:
+      tags: [Patients]
+      summary: Create a patient account (sign-up step 1)
+      description: Signs the patient in and emails a verification code. Next step is the health profile.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterPatientInput" }
+            example: { name: Nadine Khalil, email: nadine@example.com, phone: "03 123 456", password: "Secret#123", acceptTerms: true, language: en }
+      responses:
+        "201":
+          description: Account created
+          headers: { Location: { schema: { type: string }, description: "/api/v1/patients/me" } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /patients/me:
+    get:
+      tags: [Patients]
+      summary: My patient account
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /patients/me/health-profile:
+    put:
+      tags: [Patients]
+      summary: Full health profile (sign-up step 2) – sets onboarding to done
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HealthProfileInput" }
+            example: { dob: "1990-05-14", cityId: 2, bloodTypeId: 1, insuranceId: 1, insuranceNumber: NS-4411, allergies: [Penicillin], noKnownAllergies: false }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    patch:
+      tags: [Patients]
+      summary: Change part of the health profile (Settings → Health & insurance)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HealthProfilePatch" }
+            example: { emergencyContact: "03 444 555" }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  # ───────────────────────────────────────────── Doctors
+  /doctors:
+    post:
+      tags: [Doctors]
+      summary: Create a doctor account (verification pending)
+      description: The profile stays hidden from patients until an administrator approves it.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterDoctorInput" }
+            example: { name: Lina Khoury, email: lina@clinic.lb, phone: "+961 71 222 333", password: "Secret#123", specialtyId: 2, licenseNumber: "18342", cityId: 2, acceptTerms: true }
+      responses:
+        "201":
+          description: Account created
+          headers: { Location: { schema: { type: string }, description: "/api/v1/doctors/{id}" } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      tags: [Doctors]
+      summary: Doctor applications (admin)
+      parameters:
+        - { name: verification, in: query, schema: { type: string, enum: [pending, approved, rejected] } }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PageSize" }
+      responses:
+        "200":
+          description: A page of applications, oldest first
+          content: { application/json: { schema: { $ref: "#/components/schemas/DoctorApplicationPage" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /doctors/me:
+    get:
+      tags: [Doctors]
+      summary: My doctor account, practice profile included
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      tags: [Doctors]
+      summary: Practice profile
+      description: |
+        `clinicId` = a listed clinic (its city is used) or `null` = own practice (then `practice` and `cityId` are required).
+        `languageIds`, `insuranceIds` and `education` replace the whole list.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DoctorProfilePatch" }
+            example:
+              clinicId: null
+              practice: { name: Khoury Clinic, address: "Bliss Street, Bldg 7", phone: "01 234 567" }
+              cityId: 2
+              fee: 60
+              experience: 12
+              videoConsult: true
+              bio: Cardiologist focused on prevention.
+              languageIds: [1, 2]
+              insuranceIds: [1]
+              education: [{ degree: MD, institution: American University of Beirut, year: 2010 }]
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /doctors/me/verification:
+    post:
+      tags: [Doctors]
+      summary: Re-submit a rejected application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResubmitInput" }
+            example: { licenseNumber: "18343", note: Corrected a typo in my license number. }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /doctors/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Doctors]
+      summary: One application (admin)
+      responses:
+        "200":
+          description: The application
+          content: { application/json: { schema: { $ref: "#/components/schemas/DoctorApplication" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /doctors/{id}/verification:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Doctors]
+      summary: Approve or reject an application (admin)
+      description: A doctor whose email is not confirmed cannot be approved (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerificationDecision" }
+            example: { status: rejected, reason: The license number does not match the Order's register. }
+      responses:
+        "200":
+          description: Decision saved; the doctor is notified
+          content: { application/json: { schema: { $ref: "#/components/schemas/DoctorApplication" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  # ───────────────────────────────────────────── Users
+  /users/me:
+    get:
+      tags: [Users]
+      summary: My account
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    patch:
+      tags: [Users]
+      summary: Settings → Profile, Language, Notifications
+      description: Changing `email` makes the account unverified again and sends a code to the new address.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateMeInput" }
+            example: { name: Nadine Khalil Haddad, phone: "71 999 888", genderId: 1, language: fr, notifications: { sms: true } }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /users/me/password:
+    patch:
+      tags: [Users]
+      summary: Settings → Password
+      description: Signs out the other devices. The answer contains a new token for this device.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordInput" }
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, token]
+                properties:
+                  message: { type: string }
+                  token: { type: string, description: Replace the old token with this one. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /users/me/deactivate:
+    post:
+      tags: [Users]
+      summary: Settings → Danger zone – deactivate my account
+      description: Patients and doctors only. Signs the user out everywhere; an administrator can restore it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeactivateInput" }
+            example: { confirmEmail: nadine@example.com }
+      responses:
+        "204": { description: Account deactivated }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users (admin)
+      parameters:
+        - { name: role, in: query, schema: { type: string, enum: [patient, doctor, admin] } }
+        - { name: status, in: query, schema: { type: string, enum: [active, suspended, deactivated] } }
+        - { name: search, in: query, schema: { type: string, maxLength: 100 }, description: "name, email or phone" }
+        - { $ref: "#/components/parameters/Page" }
+        - { $ref: "#/components/parameters/PageSize" }
+      responses:
+        "200":
+          description: A page of users, newest first
+          content: { application/json: { schema: { $ref: "#/components/schemas/UserPage" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /users/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Users]
+      summary: One user (admin)
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+    delete:
+      tags: [Users]
+      summary: Delete an account (admin)
+      description: Accounts with appointments or prescriptions cannot be deleted (409) – deactivate them instead.
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /users/{id}/status:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [Users]
+      summary: Suspend, deactivate or reactivate an account (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StatusChange" }
+            example: { status: suspended, reason: Repeated no-shows }
+      responses:
+        "200": { $ref: "#/components/responses/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+# ═════════════════════════════════════════════════════════ components
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: The `token` returned by sign-in or sign-up.
+
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    PageSize: { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+
+  responses:
+    Session:
+      description: Signed in
+      content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } }
+    User:
+      description: The account
+      content: { application/json: { schema: { $ref: "#/components/schemas/User" } } }
+    Message:
+      description: Done
+      content: { application/json: { schema: { $ref: "#/components/schemas/Message" } } }
+    CodeSent:
+      description: A code was emailed (the answer never reveals whether an account exists)
+      content: { application/json: { schema: { $ref: "#/components/schemas/CodeSent" } } }
+    Unauthorized:
+      description: Missing, invalid or expired token – or wrong email/password at sign-in
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    Forbidden:
+      description: Wrong role, or the account is suspended/deactivated
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    NotFound:
+      description: The resource does not exist
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    Conflict:
+      description: Already in use (email, license), or the current state forbids it
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    ValidationError:
+      description: Invalid input – `errors` lists every problem
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: about:blank
+            title: Unprocessable Content
+            status: 422
+            detail: Please fix the highlighted fields.
+            instance: /api/v1/patients
+            errors: [{ in: body, field: email, message: Enter a valid email address. }]
+            requestId: 4f1c2b7e-8a3d-4c1e-9f0b-2d6a5e7c9b10
+    TooManyRequests:
+      description: Rate limit reached – wait and try again
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+
+  schemas:
+    # ---------- shared
+    Problem:
+      type: object
+      description: RFC 9457 problem details
+      required: [type, title, status, detail, instance, requestId]
+      properties:
+        type: { type: string, examples: ["about:blank"] }
+        title: { type: string, examples: [Unprocessable Content] }
+        status: { type: integer, examples: [422] }
+        detail: { type: string }
+        instance: { type: string, examples: [/api/v1/patients] }
+        requestId: { type: string, description: Search the API logs for this value }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              in: { type: string, enum: [body, params, query] }
+              field: { type: string, examples: [email] }
+              message: { type: string }
+    Ref:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    Message:
+      type: object
+      required: [message]
+      properties: { message: { type: string } }
+    CodeSent:
+      type: object
+      required: [message, expiresInMinutes, resendAfterSeconds]
+      properties:
+        message: { type: string }
+        expiresInMinutes: { type: integer, examples: [15] }
+        resendAfterSeconds: { type: integer, examples: [60] }
+    Phone:
+      type: string
+      description: Lebanese number in any common format; stored as +961…
+      examples: ["03 123 456"]
+    Password:
+      type: string
+      minLength: 8
+      maxLength: 128
+      description: At least one uppercase letter, one lowercase letter, one number and one symbol
+      examples: ["Secret#123"]
+    Date:
+      type: string
+      format: date
+      examples: ["1990-05-14"]
+
+    # ---------- users
+    Session:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string, description: "Send as Authorization: Bearer <token>" }
+        user: { $ref: "#/components/schemas/User" }
+    User:
+      type: object
+      required: [id, role, name, email, phone, status, emailVerified, language, notifications, createdAt]
+      properties:
+        id: { type: integer }
+        role: { type: string, enum: [patient, doctor, admin] }
+        name: { type: string, examples: [Nadine Khalil] }
+        email: { type: string, format: email }
+        phone: { type: string, examples: ["+9613123456"] }
+        gender: { oneOf: [{ $ref: "#/components/schemas/Ref" }, { type: "null" }] }
+        status: { type: string, enum: [active, suspended, deactivated] }
+        statusReason: { type: [string, "null"] }
+        emailVerified: { type: boolean }
+        language: { type: string, enum: [en, fr, ar] }
+        notifications:
+          type: object
+          properties:
+            email: { type: boolean }
+            sms: { type: boolean }
+            reminders: { type: boolean }
+            newBooking: { type: boolean }
+            marketing: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        patient: { $ref: "#/components/schemas/Patient" }
+        doctor: { $ref: "#/components/schemas/Doctor" }
+    UserPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties: { items: { type: array, items: { $ref: "#/components/schemas/User" } } }
+    PageInfo:
+      type: object
+      required: [total, page, pageSize, pages]
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        pageSize: { type: integer }
+        pages: { type: integer }
+
+    # ---------- patients
+    Patient:
+      type: object
+      description: Only on patient accounts
+      properties:
+        id: { type: integer }
+        dob: { type: [string, "null"], format: date }
+        governorate: { oneOf: [{ $ref: "#/components/schemas/Ref" }, { type: "null" }] }
+        city: { oneOf: [{ $ref: "#/components/schemas/Ref" }, { type: "null" }] }
+        bloodType: { oneOf: [{ $ref: "#/components/schemas/Ref" }, { type: "null" }] }
+        insurance: { oneOf: [{ $ref: "#/components/schemas/Ref" }, { type: "null" }] }
+        insuranceNumber: { type: [string, "null"] }
+        emergencyContact: { type: [string, "null"] }
+        allergies: { type: array, items: { type: string } }
+        noKnownAllergies: { type: boolean }
+        onboarding: { type: string, enum: [pending, done], description: done once the health-profile step is saved }
+    HealthProfileFields:
+      type: object
+      properties:
+        dob: { $ref: "#/components/schemas/Date" }
+        cityId: { type: integer, minimum: 1 }
+        bloodTypeId: { type: [integer, "null"], minimum: 1 }
+        insuranceId: { type: [integer, "null"], minimum: 1, description: null = self-pay }
+        insuranceNumber: { type: [string, "null"], maxLength: 50, description: required when insuranceId is set }
+        emergencyContact: { oneOf: [{ $ref: "#/components/schemas/Phone" }, { type: "null" }] }
+        allergies: { type: array, maxItems: 30, items: { type: string, minLength: 1, maxLength: 100 } }
+        noKnownAllergies: { type: boolean, description: true when allergies is empty on purpose }
+    HealthProfileInput:
+      allOf:
+        - $ref: "#/components/schemas/HealthProfileFields"
+        - type: object
+          required: [dob, cityId, allergies, noKnownAllergies]
+    HealthProfilePatch:
+      allOf:
+        - $ref: "#/components/schemas/HealthProfileFields"
+        - minProperties: 1
+
+    # ---------- doctors
+    Doctor:
+      type: object
+      description: Only on doctor accounts
+      properties:
+        id: { type: integer }
+        licenseNumber: { type: string, examples: ["18342"] }
+        specialty:
+          type: object
+          properties: { id: { type: integer }, name: { type: string }, icon: { type: [string, "null"] } }
+        governorate: { $ref: "#/components/schemas/Ref" }
+        city: { $ref: "#/components/schemas/Ref" }
+        clinic:
+          description: null = own practice
+          oneOf:
+            - type: "null"
+            - type: object
+              properties:
+                id: { type: integer }
+                name: { type: string }
+                address: { type: string }
+                phone: { type: [string, "null"] }
+                city: { $ref: "#/components/schemas/Ref" }
+                governorate: { $ref: "#/components/schemas/Ref" }
+        practiceName: { type: string }
+        practiceAddress: { type: string }
+        practicePhone: { type: [string, "null"] }
+        fee: { type: number, description: USD }
+        experience: { type: integer, description: years }
+        bio: { type: [string, "null"] }
+        videoConsult: { type: boolean }
+        languages: { type: array, items: { $ref: "#/components/schemas/Ref" } }
+        insurances: { type: array, items: { $ref: "#/components/schemas/Ref" } }
+        education:
+          type: array
+          items:
+            type: object
+            properties: { id: { type: integer }, degree: { type: string }, institution: { type: string }, year: { type: integer } }
+        verification: { $ref: "#/components/schemas/Verification" }
+    Verification:
+      type: object
+      properties:
+        status: { type: string, enum: [pending, approved, rejected] }
+        reason: { type: [string, "null"], description: why it was rejected }
+        resubmitted: { type: boolean }
+        note: { type: [string, "null"], description: the doctor's note when re-submitting }
+        submittedAt: { type: string, format: date-time }
+        reviewedAt: { type: [string, "null"], format: date-time }
+    DoctorApplication:
+      allOf:
+        - $ref: "#/components/schemas/Doctor"
+        - type: object
+          properties:
+            user:
+              type: object
+              properties:
+                id: { type: integer }
+                name: { type: string }
+                email: { type: string }
+                emailVerified: { type: boolean }
+                phone: { type: string }
+                status: { type: string }
+                createdAt: { type: string, format: date-time }
+            reviewedBy: { oneOf: [{ $ref: "#/components/schemas/Ref" }, { type: "null" }] }
+    DoctorApplicationPage:
+      allOf:
+        - $ref: "#/components/schemas/PageInfo"
+        - type: object
+          required: [items]
+          properties: { items: { type: array, items: { $ref: "#/components/schemas/DoctorApplication" } } }
+    DoctorProfilePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        bio: { type: [string, "null"], maxLength: 1200 }
+        fee: { type: number, minimum: 0, maximum: 1000 }
+        experience: { type: integer, minimum: 0, maximum: 60 }
+        videoConsult: { type: boolean }
+        clinicId: { type: [integer, "null"], minimum: 1, description: null = own practice }
+        practice:
+          type: object
+          additionalProperties: false
+          required: [name, address]
+          properties:
+            name: { type: string, minLength: 2, maxLength: 150 }
+            address: { type: string, minLength: 3, maxLength: 255 }
+            phone: { oneOf: [{ $ref: "#/components/schemas/Phone" }, { type: "null" }] }
+        cityId: { type: integer, minimum: 1, description: own practice only }
+        languageIds: { type: array, minItems: 1, maxItems: 20, uniqueItems: true, items: { type: integer, minimum: 1 } }
+        insuranceIds: { type: array, maxItems: 20, uniqueItems: true, items: { type: integer, minimum: 1 } }
+        education:
+          type: array
+          maxItems: 10
+          items:
+            type: object
+            additionalProperties: false
+            required: [degree, institution, year]
+            properties:
+              degree: { type: string, minLength: 2, maxLength: 100 }
+              institution: { type: string, minLength: 2, maxLength: 150 }
+              year: { type: integer, minimum: 1950, description: not in the future }
+    ResubmitInput:
+      type: object
+      additionalProperties: false
+      properties:
+        licenseNumber: { type: string, pattern: "^\\d{4,6}$" }
+        note: { type: string, maxLength: 500 }
+    VerificationDecision:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [approved, rejected] }
+        reason: { type: string, minLength: 5, maxLength: 500, description: required to reject }
+
+    # ---------- request bodies
+    LoginInput:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1, maxLength: 128 }
+        remember: { type: boolean, default: false, description: "true → 30-day token, false → 1 day" }
+    RegisterPatientInput:
+      type: object
+      additionalProperties: false
+      required: [name, email, phone, password, acceptTerms]
+      properties:
+        name: { type: string, minLength: 3, maxLength: 100 }
+        email: { type: string, format: email, maxLength: 255 }
+        phone: { $ref: "#/components/schemas/Phone" }
+        password: { $ref: "#/components/schemas/Password" }
+        acceptTerms: { const: true }
+        language: { type: string, enum: [en, fr, ar], default: en, description: language of the account's emails }
+    RegisterDoctorInput:
+      allOf:
+        - $ref: "#/components/schemas/RegisterPatientInput"
+        - type: object
+          required: [specialtyId, licenseNumber, cityId]
+          properties:
+            specialtyId: { type: integer, minimum: 1 }
+            licenseNumber: { type: string, pattern: "^\\d{4,6}$", description: Order of Physicians number }
+            cityId: { type: integer, minimum: 1 }
+    VerifyEmailInput:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties: { code: { type: string, pattern: "^\\d{6}$" } }
+    ForgotPasswordInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties: { email: { type: string, format: email } }
+    VerifyResetCodeInput:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: { type: string, format: email }
+        code: { type: string, pattern: "^\\d{6}$" }
+    ResetPasswordInput:
+      type: object
+      additionalProperties: false
+      required: [resetToken, password]
+      properties:
+        resetToken: { type: string, description: from step 2 }
+        password: { $ref: "#/components/schemas/Password" }
+    UpdateMeInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 3, maxLength: 100, description: "doctors get the “Dr.” title automatically" }
+        email: { type: string, format: email }
+        phone: { $ref: "#/components/schemas/Phone" }
+        genderId: { type: [integer, "null"], minimum: 1, description: null = prefer not to say }
+        language: { type: string, enum: [en, fr, ar] }
+        notifications:
+          type: object
+          additionalProperties: false
+          properties:
+            email: { type: boolean }
+            sms: { type: boolean }
+            reminders: { type: boolean }
+            newBooking: { type: boolean }
+            marketing: { type: boolean }
+    ChangePasswordInput:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, minLength: 1, maxLength: 128 }
+        newPassword: { $ref: "#/components/schemas/Password" }
+    DeactivateInput:
+      type: object
+      additionalProperties: false
+      required: [confirmEmail]
+      properties: { confirmEmail: { type: string, description: "the account's email, typed to confirm" } }
+    StatusChange:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [active, suspended, deactivated] }
+        reason: { type: string, minLength: 5, maxLength: 300, description: required unless status is active }
+
+    # ---------- lookups
+    Lookups:
+      type: object
+      required: [specialties, governorates, insurances, bloodTypes, languages, genders, clinics]
+      properties:
+        specialties:
+          type: array
+          items:
+            type: object
+            properties: { id: { type: integer }, name: { type: string }, icon: { type: [string, "null"] } }
+        governorates:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string, examples: [Beirut] }
+              cities: { type: array, items: { $ref: "#/components/schemas/Ref" } }
+        insurances: { type: array, items: { $ref: "#/components/schemas/Ref" } }
+        bloodTypes: { type: array, items: { $ref: "#/components/schemas/Ref" } }
+        languages: { type: array, items: { $ref: "#/components/schemas/Ref" } }
+        genders: { type: array, items: { $ref: "#/components/schemas/Ref" } }
+        clinics:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              type: { type: string, examples: [Medical center] }
+              address: { type: string }
+              phone: { type: [string, "null"] }
+              city: { $ref: "#/components/schemas/Ref" }
+              governorate: { $ref: "#/components/schemas/Ref" }
+
+# Every operation needs a token unless it says `security: []`
+security:
+  - bearerAuth: []

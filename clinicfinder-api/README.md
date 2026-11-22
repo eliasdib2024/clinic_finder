@@ -109,6 +109,7 @@ users: 0
 | `npm run db:deploy` | Production: applies existing migrations and never creates new ones |
 | `npm run db:studio` | Opens Prisma Studio, a browser UI to view and edit the data |
 | `npm run db:test` | Checks that the database connection works |
+| `npm run lint:api` | Checks `docs/openapi.yaml` (valid OpenAPI 3.1, every `$ref` resolves) |
 | `npm run mail:test -- you@example.com` | Sends one test email with the `.env` mail settings |
 
 ---
@@ -238,6 +239,25 @@ and again here with Zod (+ checks that every id exists). Errors use the same pro
 While it is `pending`, the frontend keeps the patient on the "Complete your profile" page.
 
 `GET /lookups` also returns `genders` and `clinics` (seeded by `npm run db:seed`).
+
+## API documentation (Swagger UI)
+
+The whole API is described in **`docs/openapi.yaml`** (OpenAPI 3.1): every endpoint, its request body,
+every status code it can return, and the shared schemas (`User`, `Problem`…).
+
+| URL | What |
+|---|---|
+| http://localhost:3000/docs | Swagger UI – read the docs and try every endpoint |
+| http://localhost:3000/docs/openapi.yaml | The raw document (import it into Postman or Insomnia) |
+
+To call a protected endpoint: run `POST /auth/login` in Swagger UI, copy the `token`, click **Authorize**,
+paste it. The token is kept after a page reload.
+
+When you add or change an endpoint, update `docs/openapi.yaml` in the same commit, then check it:
+
+```bash
+npm run lint:api     # OK: ClinicFinder API v1.0.0 – 22 paths, 27 operations
+```
 
 ## Database conventions
 

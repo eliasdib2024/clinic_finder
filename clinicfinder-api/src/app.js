@@ -9,6 +9,7 @@ import { requestId } from './middleware/request-id.js';
 import { notFoundHandler } from './middleware/not-found.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { apiRouter } from './routes/index.js';
+import { mountDocs } from './docs.js';
 
 export const app = express();
 
@@ -19,7 +20,7 @@ app.use(requestId);
 app.use(httpLogger);
 app.use(express.json({ limit: '100kb' }));
 app.get('/', (req, res) => {
-  res.json({ name: 'ClinicFinder API', version: 'v1', health: '/health', docs: '/api/v1' });
+  res.json({ name: 'ClinicFinder API', version: 'v1', health: '/health', docs: '/docs' });
 });
 // Health check for the load balancer: is the API up and can it reach the database?
 app.get('/health', async (req, res) => {
@@ -27,6 +28,7 @@ app.get('/health', async (req, res) => {
   res.json({ status: 'ok', uptime: Math.round(process.uptime()) });
 });
 
+mountDocs(app);                            // GET /docs (Swagger UI), GET /docs/openapi.yaml
 app.use('/api/v1', apiRouter);
 
 app.use(notFoundHandler);
