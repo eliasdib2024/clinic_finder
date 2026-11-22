@@ -3,22 +3,32 @@ import { tx } from '../lib/i18n';
 import { ApiError, request, requireUser, setToken, logActivity } from './db';
 import { isApiConfigured } from './http';
 import * as api from './api/authApi';
+import * as profileApi from './api/profileApi';
 import { publicUser } from './serializers';
 import { email as vEmail, lebanesePhone, normalizeLebanesePhone, required } from '../lib/validators';
 import { BLOOD_TYPES, GOVERNORATES, citiesOf } from '../lib/constants';
 
-export function updateProfile(patch) {
+const fixFields = (errors) => new ApiError(tx('Please fix the highlighted fields.'), 422, errors);
+
+/** Frontend checks for Settings → Profile. The API checks the same rules again (and that the email is free). */
+function profileErrors(patch) {
+  const errors = {};
+  if ('name' in patch && (required(patch.name, 'Name') || patch.name.trim().length < 3)) errors.name = tx('Enter your full name.');
+  if ('email' in patch && vEmail(patch.email)) errors.email = vEmail(patch.email);
+  if ('phone' in patch && lebanesePhone(patch.phone)) errors.phone = lebanesePhone(patch.phone);
+  if ('gender' in patch && patch.gender && !['f', 'm'].includes(patch.gender)) errors.gender = tx('Choose a valid option.');
+  return errors;
+}
+
+export async function updateProfile(patch) {
+  const errors = profileErrors(patch);
+  if (Object.keys(errors).length) throw fixFields(errors);
+  if (isApiConfigured()) return profileApi.updateProfile(patch);   // saved in the database
   return request((db) => {
     const user = requireUser(db);
-    const errors = {};
-    if ('name' in patch && (required(patch.name, 'Name') || patch.name.trim().length < 3)) errors.name = tx('Enter your full name.');
-    if ('email' in patch) {
-      const e = vEmail(patch.email);
-      if (e) errors.email = e;
-      else if (db.users.some((u) => u.id !== user.id && u.email.toLowerCase() === patch.email.trim().toLowerCase())) errors.email = tx('This email is already used by another account.');
+    if ('email' in patch && db.users.some((u) => u.id !== user.id && u.email.toLowerCase() === patch.email.trim().toLowerCase())) {
+      throw fixFields({ email: tx('This email is already used by another account.') });
     }
-    if ('phone' in patch && lebanesePhone(patch.phone)) errors.phone = lebanesePhone(patch.phone);
-    if (Object.keys(errors).length) throw new ApiError(tx('Please fix the highlighted fields.'), 422, errors);
     if ('name' in patch) user.name = user.role === 'doctor' && !/^dr\.?\s/i.test(patch.name.trim()) ? `Dr. ${patch.name.trim()}` : patch.name.trim();
     if ('email' in patch) user.email = patch.email.trim().toLowerCase();
     if ('phone' in patch) user.phone = normalizeLebanesePhone(patch.phone);
@@ -65,12 +75,16 @@ function applyHealth(user, patch) {
   if (!user.patient.governorate) user.patient.city = '';
 }
 
-export function updateHealth(patch) {
+export async function updateHealth(patch) {
+  // Frontend checks first (the API checks the same rules again)
+  await request((db) => {
+    const user = requireUser(db, ['patient']);
+    const errors = healthErrors(db, { ...user.patient, ...patch });
+    if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
+  }, { latency: 0 });
+  if (isApiConfigured()) return profileApi.updateHealth(patch);   // saved in the database
   return request((db) => {
     const user = requireUser(db, ['patient']);
-    const merged = { ...user.patient, ...patch };
-    const errors = healthErrors(db, merged);
-    if (Object.keys(errors).length) throw new ApiError(Object.values(errors)[0], 422, errors);
     applyHealth(user, patch);
     return publicUser(user);
   });
@@ -90,7 +104,10 @@ export function completeOnboarding(patch) {
   });
 }
 
-export function updateSettings(patch) {
+export async function updateSettings(patch) {
+  // API mode: language and notification choices are saved in the database first,
+  // then the copy in the browser is updated so the pages that still use it stay in step.
+  if (isApiConfigured()) await api.updateSettings(patch);
   return request((db) => {
     const user = requireUser(db);
     user.settings = { ...user.settings, ...patch, notifications: { ...user.settings.notifications, ...(patch.notifications || {}) } };
@@ -99,10 +116,15 @@ export function updateSettings(patch) {
 }
 
 /** Deactivate own account: cancels future bookings and signs out everywhere. */
-export function deactivateAccount(confirmEmail) {
-  return request((db) => {
+export async function deactivateAccount(confirmEmail) {
+  // Frontend check first (the API checks it again)
+  await request((db) => {
     const user = requireUser(db, ['patient', 'doctor']);
     if (String(confirmEmail).trim().toLowerCase() !== user.email) throw new ApiError(tx('Type your email address exactly to confirm.'), 422, { confirm: tx('Email does not match.') });
+  }, { latency: 0 });
+  if (isApiConfigured()) return profileApi.deactivateAccount(confirmEmail);
+  return request((db) => {
+    const user = requireUser(db, ['patient', 'doctor']);
     user.status = 'deactivated';
     cancelFutureFor(db, user, 'Account deactivated');
     for (const [t, s] of Object.entries(db.sessions)) if (s.userId === user.id) delete db.sessions[t];

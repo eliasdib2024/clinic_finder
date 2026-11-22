@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { email, fullName, phone, newPassword, id, isoDate } from './common.schemas.js';
+import { email, fullName, phone, newPassword, id, isoDate, language } from './common.schemas.js';
 
 const acceptTerms = z.literal(true, { error: 'Please accept the terms to continue.' });
 
@@ -10,6 +10,7 @@ export const registerPatientBody = z.object({
   phone,
   password: newPassword,
   acceptTerms,
+  language: language.default('en'),
 }).strict();
 
 const today = () => new Date().toISOString().slice(0, 10);

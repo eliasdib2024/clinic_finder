@@ -26,6 +26,9 @@ export const newPassword = z.string({ error: 'Password is required.' })
   .regex(/\d/, 'Add a number.')
   .regex(/[^A-Za-z0-9]/, 'Add a symbol.');
 
+// The language the user is browsing in: the account's emails (verification code…) are sent in it
+export const language = z.enum(['en', 'fr', 'ar'], { error: 'Language must be en, fr or ar.' });
+
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the format YYYY-MM-DD.')
   .refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)), 'Enter a valid date.');
 

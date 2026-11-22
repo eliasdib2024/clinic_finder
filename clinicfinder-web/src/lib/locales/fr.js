@@ -1462,4 +1462,14 @@ export default {
   "Your other devices were signed out.": "Vos autres appareils ont été déconnectés.",
   "Your password was just changed from another session. Please sign in again.": "Votre mot de passe vient d’être modifié depuis une autre session. Veuillez vous reconnecter.",
   "Your password has been changed. Your other devices were signed out.": "Votre mot de passe a été modifié. Vos autres appareils ont été déconnectés.",
+  // Profile updates saved in the database
+  "Each degree needs a name, an institution and a year between 1950 and {0}.": "Chaque diplôme doit avoir un intitulé, un établissement et une année entre 1950 et {0}.",
+  "Keep the note under 500 characters.": "La note doit faire moins de 500 caractères.",
+  "Choose a valid option.": "Choisissez une option valide.",
+  "We sent a 6-digit code to {0}. Confirm your new email address to continue.": "Nous avons envoyé un code à 6 chiffres à {0}. Confirmez votre nouvelle adresse e-mail pour continuer.",
+  "Choose languages from the list.": "Choisissez des langues dans la liste.",
+  "Choose insurers from the list.": "Choisissez des assureurs dans la liste.",
+  "Administrator accounts cannot be deactivated here.": "Les comptes administrateur ne peuvent pas être désactivés ici.",
+  "Too many failed sign-in attempts for this account. Please wait 15 minutes and try again.": "Trop de tentatives de connexion échouées pour ce compte. Veuillez patienter 15 minutes et réessayer.",
+  "Too many failed sign-in attempts from this network. Please wait 15 minutes and try again.": "Trop de tentatives de connexion échouées depuis ce réseau. Veuillez patienter 15 minutes et réessayer.",
 };

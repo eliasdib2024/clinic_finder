@@ -72,7 +72,13 @@ function ProfileTab() {
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    try { setUser(await updateProfile(v)); toast.success(tx('Profile saved')); } catch (err) { setErrors(err.fields || {}); toast.error(tx('Profile not saved'), { body: err.message }); } finally { setBusy(false); }
+    try {
+      const saved = await updateProfile(v);
+      // A new email address must be confirmed: the app opens the "Confirm your email" page
+      const newEmail = saved.emailVerified === false && v.email.trim().toLowerCase() !== user.email;
+      toast.success(tx('Profile saved'), newEmail ? { body: tx('We sent a 6-digit code to {0}. Confirm your new email address to continue.', { 0: saved.email }) } : undefined);
+      setUser(saved);
+    } catch (err) { setErrors(err.fields || {}); toast.error(tx('Profile not saved'), { body: err.message }); } finally { setBusy(false); }
   };
   return (
     <form className="stack" onSubmit={save} noValidate style={{ maxWidth: 620 }}>
@@ -154,7 +160,7 @@ function PasswordTab() {
   const save = async (e) => {
     e.preventDefault();
     const errs = validate(v, {
-      current: (x) => (x ? '' : 'Enter your current password.'),
+      current: (x) => (x ? '' : tx('Enter your current password.')),
       // Same rule as the API (which also checks it against the stored hash)
       next: (x, all) => vPassword(x) || (x && x === all.current ? tx('Choose a password different from your current one.') : ''),
       confirm: (x, all) => confirmPassword(all.next, x),

@@ -33,3 +33,9 @@ export async function remove(req, res) {
   req.log.info({ targetUserId: req.params.id }, 'account deleted');
   res.sendStatus(204);
 }
+
+export async function deactivateMe(req, res) {
+  await usersService.deactivateMe(req.user.id, req.body);
+  req.log.info({ userId: req.user.id }, 'account deactivated by its owner');
+  res.sendStatus(204);
+}

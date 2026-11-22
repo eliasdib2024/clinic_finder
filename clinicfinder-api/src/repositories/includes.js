@@ -13,6 +13,10 @@ export const USER_PROFILE_INCLUDE = {
     include: {
       specialty: true,
       city: { include: { governorate: true } },
+      clinic: { include: { city: { include: { governorate: true } } } },
+      languages: { include: { language: true }, orderBy: { languageId: 'asc' } },
+      insurances: { include: { insurance: true }, orderBy: { insuranceId: 'asc' } },
+      educations: { orderBy: [{ year: 'desc' }, { id: 'asc' }] },
     },
   },
 };

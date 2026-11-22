@@ -64,7 +64,7 @@ export default function Login() {
           <Input type="email" icon={Mail} value={values.email} onChange={set('email')} autoComplete="email" placeholder={tx('you@example.com')} />
         </Field>
         <Field label={tx('Password')} error={errors.password} required aside={<Link to="/forgot-password" className="small" style={{ fontWeight: 600 }}>{tx('Forgot password?')}</Link>}>
-          <PasswordInput icon={Lock} value={values.password} onChange={set('password')} autoComplete="current-password" />
+          <PasswordInput icon={Lock} value={values.password} placeholder={tx('Enter your password')} onChange={set('password')} autoComplete="current-password" />
         </Field>
         <Checkbox label={tx('Keep me signed in on this device')} checked={values.remember} onChange={set('remember')} />
         {formError && <div className="banner danger" role="alert">{formError}</div>}

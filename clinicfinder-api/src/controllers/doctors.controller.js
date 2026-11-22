@@ -20,3 +20,17 @@ export async function review(req, res) {
   req.log.info({ doctorId: doctor.id, status: doctor.verification.status }, 'doctor application reviewed');
   res.json(doctor);
 }
+
+export async function getMe(req, res) {
+  res.json(await doctorsService.getMe(req.user.id));
+}
+
+export async function updateMe(req, res) {
+  res.json(await doctorsService.updateMe(req.user.id, req.body));
+}
+
+export async function resubmit(req, res) {
+  const user = await doctorsService.resubmit(req.user.id, req.body);
+  req.log.info({ doctorId: user.doctor.id }, 'verification re-submitted');
+  res.json(user);
+}

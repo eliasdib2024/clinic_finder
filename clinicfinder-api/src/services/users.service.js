@@ -6,6 +6,8 @@ import * as mail from './mail.service.js';
 import { toUserDto, page } from '../utils/serializers.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { signAccessToken } from '../utils/jwt.js';
+import * as lookupsRepository from '../repositories/lookups.repository.js';
+import { sendCodeToNewEmail } from './email-verification.service.js';
 import { logger } from '../loggers/logger.js';
 
 const log = logger.child({ module: 'users' });
@@ -60,16 +62,51 @@ export async function getById(id) {
   return toUserDto(user);
 }
 
-export async function updateMe(userId, { name, phone, language, notifications }) {
+const withDoctorTitle = (name) => (/^dr\.?\s/i.test(name) ? name : `Dr. ${name}`);
+
+// Settings → Profile / Preferences, for every role
+export async function updateMe(userId, { name, email, phone, genderId, language, notifications }) {
+  const current = await usersRepository.findById(userId);
+  if (!current) throw notFound('User');
+
+  const errors = [];
+  const emailChanged = email !== undefined && email !== current.email;
+  if (emailChanged && (await usersRepository.existsByEmail(email))) {
+    throw conflict('This email is already used by another account.', [{ field: 'email', message: 'This email is already used by another account.' }]);
+  }
+  if (genderId && !(await lookupsRepository.genderExists(genderId))) errors.push({ field: 'genderId', message: 'Choose a valid option.' });
+  if (errors.length) throw validationFailed(errors);
+
   const data = {};
-  if (name !== undefined) data.fullName = name;
+  if (name !== undefined) data.fullName = current.role === 'doctor' ? withDoctorTitle(name) : name;
+  if (emailChanged) Object.assign(data, { email, emailVerified: false, emailVerifiedAt: null });   // must be confirmed again
   if (phone !== undefined) data.phone = phone;
+  if (genderId !== undefined) data.genderId = genderId;
   if (language !== undefined) data.language = language;
   if (notifications) {
     const map = { email: 'notifyEmail', sms: 'notifySms', reminders: 'notifyReminders', newBooking: 'notifyNewBooking', marketing: 'notifyMarketing' };
     for (const [key, value] of Object.entries(notifications)) data[map[key]] = value;
   }
-  return toUserDto(await usersRepository.update(userId, data));
+  const updated = await usersRepository.update(userId, data);
+
+  if (emailChanged) {
+    await sendCodeToNewEmail(updated);
+    await activity.logActivity('{0} changed their email address', 'user', { 0: updated.fullName });
+    log.info({ userId }, 'email changed, verification code sent to the new address');
+  }
+  return toUserDto(updated);
+}
+
+// Settings → Danger zone. Signs the user out everywhere (the token check refuses inactive accounts).
+// An administrator can restore the account from the admin panel.
+export async function deactivateMe(userId, { confirmEmail }) {
+  const user = await usersRepository.findById(userId);
+  if (!user) throw notFound('User');
+  if (user.role === 'admin') throw forbidden('Administrator accounts cannot be deactivated here.');
+  if (confirmEmail !== user.email) throw validationFailed([{ field: 'confirmEmail', message: 'Email does not match.' }]);
+
+  await usersRepository.update(userId, { status: 'deactivated', statusReason: 'Deactivated by the user' });
+  await activity.logActivity('{0} deactivated their account', 'user', { 0: user.fullName });
 }
 
 async function findOther(adminId, id) {

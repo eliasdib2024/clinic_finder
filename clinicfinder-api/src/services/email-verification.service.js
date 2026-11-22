@@ -48,6 +48,12 @@ async function issueCode(user) {
 
 // ───────────────────────────── after sign-up
 // The account already exists at this point: a failure here is logged, and the user can press "resend".
+// After the user changes their email in Settings: a code goes to the NEW address at once
+// (no 60-second wait – it is a different address). Same rules as the first code.
+export async function sendCodeToNewEmail(user) {
+  await issueCode(user);
+}
+
 export async function sendFirstCode(user) {
   try {
     await issueCode(user);

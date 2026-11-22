@@ -6,6 +6,8 @@ import { generateSlots, availabilityMap, validateSchedule, BOOKING_WINDOW_DAYS }
 import { todayISO, diffDays, timeToMinutes } from '../lib/dates';
 import { fee as vFee, lebanesePhone, required } from '../lib/validators';
 import { citiesOf, SLOT_LENGTHS } from '../lib/constants';
+import { isApiConfigured } from './http';
+import * as profileApi from './api/profileApi';
 
 const visible = (db, d) => d.verification.status === 'approved' && db.users.find((u) => u.id === d.userId)?.status === 'active';
 
@@ -116,26 +118,45 @@ const myDoctor = (db) => {
   return { user, d };
 };
 
-export function getMyDoctorProfile() {
+export async function getMyDoctorProfile() {
+  if (isApiConfigured()) await profileApi.refreshMyDoctorProfile();   // latest values from the database
   return request((db) => doctorView(db, myDoctor(db).d));
 }
 
-export function updateMyDoctorProfile(patch) {
+/** Frontend checks for the practice profile. The API checks the same rules again. */
+function practiceErrors(db, patch) {
+  const errors = {};
+  if ('fee' in patch && vFee(patch.fee)) errors.fee = vFee(patch.fee);
+  if ('bio' in patch && String(patch.bio).length > 1200) errors.bio = tx('Keep your biography under 1,200 characters.');
+  if ('languages' in patch && !patch.languages.length) errors.languages = tx('Select at least one language.');
+  if ('governorate' in patch && !citiesOf(patch.governorate).includes(patch.city)) errors.city = tx('Choose a city in the selected governorate.');
+  if ('experience' in patch && (Number(patch.experience) < 0 || Number(patch.experience) > 60)) errors.experience = tx('Enter years of experience between 0 and 60.');
+  if (patch.clinicId === null && patch.practice) {
+    if (required(patch.practice.name)) errors['practice.name'] = tx('Practice name is required.');
+    if (required(patch.practice.address)) errors['practice.address'] = tx('Practice address is required.');
+    if (patch.practice.phone && lebanesePhone(patch.practice.phone)) errors['practice.phone'] = lebanesePhone(patch.practice.phone);
+  }
+  if (patch.clinicId && !db.clinics.some((c) => c.id === patch.clinicId)) errors.clinicId = tx('Select a listed clinic.');
+  if ('education' in patch) {
+    const year = new Date().getFullYear();
+    const bad = (patch.education || []).find((e) => (e.degree || e.institution || e.year)
+      && (String(e.degree || '').trim().length < 2 || String(e.institution || '').trim().length < 2 || !(Number(e.year) >= 1950 && Number(e.year) <= year)));
+    if (bad) errors.education = tx('Each degree needs a name, an institution and a year between 1950 and {0}.', { 0: year });
+  }
+  return errors;
+}
+
+export async function updateMyDoctorProfile(patch) {
+  await request((db) => {
+    const errors = practiceErrors(db, patch);
+    if (Object.keys(errors).length) throw new ApiError(tx('Please fix the highlighted fields.'), 422, errors);
+  }, { latency: 0 });
+  if (isApiConfigured()) {
+    await profileApi.updateDoctorProfile(patch);              // saved in the database
+    return request((db) => doctorView(db, myDoctor(db).d));
+  }
   return request((db) => {
     const { d } = myDoctor(db);
-    const errors = {};
-    if ('fee' in patch && vFee(patch.fee)) errors.fee = vFee(patch.fee);
-    if ('bio' in patch && String(patch.bio).length > 1200) errors.bio = tx('Keep your biography under 1,200 characters.');
-    if ('languages' in patch && !patch.languages.length) errors.languages = tx('Select at least one language.');
-    if ('governorate' in patch && !citiesOf(patch.governorate).includes(patch.city)) errors.city = tx('Choose a city in the selected governorate.');
-    if ('experience' in patch && (Number(patch.experience) < 0 || Number(patch.experience) > 60)) errors.experience = tx('Enter years of experience between 0 and 60.');
-    if (patch.clinicId === null && patch.practice) {
-      if (required(patch.practice.name)) errors['practice.name'] = tx('Practice name is required.');
-      if (required(patch.practice.address)) errors['practice.address'] = tx('Practice address is required.');
-      if (patch.practice.phone && lebanesePhone(patch.practice.phone)) errors['practice.phone'] = lebanesePhone(patch.practice.phone);
-    }
-    if (patch.clinicId && !db.clinics.some((c) => c.id === patch.clinicId)) errors.clinicId = tx('Select a listed clinic.');
-    if (Object.keys(errors).length) throw new ApiError(tx('Please fix the highlighted fields.'), 422, errors);
 
     const allowed = ['bio', 'fee', 'languages', 'insurances', 'education', 'clinicId', 'practice', 'experience', 'governorate', 'city', 'videoConsult'];
     for (const k of allowed) if (k in patch) d[k] = k === 'fee' || k === 'experience' ? Number(patch[k]) : patch[k];
@@ -166,14 +187,21 @@ export function updateMySchedule({ schedule, slotLength, autoConfirm, blockedDat
 }
 
 /** Re-submit a rejected verification. */
-export function resubmitVerification(changes = {}) {
+export async function resubmitVerification(changes = {}) {
+  // Frontend checks first (the API checks them again)
+  await request((db) => {
+    const { d } = myDoctor(db);
+    if (d.verification.status !== 'rejected') throw new ApiError(tx('Only rejected applications can be re-submitted.'), 409);
+    if (changes.licenseNumber && !/^\d{4,6}$/.test(changes.licenseNumber)) throw new ApiError(tx('Enter your Order of Physicians number (4–6 digits).'), 422, { licenseNumber: tx('Enter 4–6 digits.') });
+    if ((changes.note || '').length > 500) throw new ApiError(tx('Keep the note under 500 characters.'), 422, { note: tx('Keep the note under 500 characters.') });
+  }, { latency: 0 });
+  if (isApiConfigured()) {
+    await profileApi.resubmitVerification(changes);
+    return request((db) => doctorView(db, myDoctor(db).d));
+  }
   return request((db) => {
     const { user, d } = myDoctor(db);
-    if (d.verification.status !== 'rejected') throw new ApiError(tx('Only rejected applications can be re-submitted.'), 409);
-    if (changes.licenseNumber) {
-      if (!/^\d{4,6}$/.test(changes.licenseNumber)) throw new ApiError(tx('Enter your Order of Physicians number (4–6 digits).'), 422, { licenseNumber: tx('Enter 4–6 digits.') });
-      d.licenseNumber = changes.licenseNumber;
-    }
+    if (changes.licenseNumber) d.licenseNumber = changes.licenseNumber;
     d.verification = { ...d.verification, status: 'pending', resubmitted: true, submittedAt: new Date().toISOString(), note: changes.note || '' };
     db.users.filter((u) => u.role === 'admin').forEach((a) => notify(db, a.id, {
       title: 'Verification resubmitted',

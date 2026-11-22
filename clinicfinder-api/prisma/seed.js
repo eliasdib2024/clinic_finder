@@ -29,6 +29,24 @@ const LANGUAGES = ['Arabic', 'English', 'French', 'Armenian'];
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const GENDERS = ['Female', 'Male'];
 const CLINIC_TYPES = ['Private clinic', 'Medical center', 'Hospital', 'Polyclinic'];
+// [name, clinic type, governorate, city, address, phone] – the clinics doctors can choose in their practice profile
+const CLINICS = [
+  ['Cedar Heights Medical Center', 'Medical center', 'Beirut', 'Achrafieh', 'Sassine Square, Mounir Bldg, 3rd floor', '+9611334210'],
+  ['Hamra Polyclinic', 'Polyclinic', 'Beirut', 'Hamra', 'Makdessi Street, Nour Bldg, 2nd floor', '+9611745118'],
+  ['Verdun Specialists Clinic', 'Private clinic', 'Beirut', 'Verdun', 'Rashid Karami Street, Plaza Tower, 6th floor', '+9611802446'],
+  ['Baabda Valley Hospital', 'Hospital', 'Mount Lebanon', 'Baabda', 'Main Road, near the Municipality', '+9615921330'],
+  ['Metn Family Health Center', 'Medical center', 'Mount Lebanon', 'Jdeideh', 'Fouad Chehab Avenue, Bldg 21', '+9611889504'],
+  ['Jounieh Bay Medical Center', 'Medical center', 'Keserwan-Jbeil', 'Jounieh', 'Old Souk Road, Marina Bldg', '+9619638271'],
+  ['Byblos Coast Clinic', 'Private clinic', 'Keserwan-Jbeil', 'Byblos', 'Port Street, Bldg 4, 1st floor', '+9619547902'],
+  ['Al Mina Polyclinic', 'Polyclinic', 'North', 'Tripoli', 'Al Mina Corniche, Bldg 12', '+9616412775'],
+  ['Batroun Seaside Clinic', 'Private clinic', 'North', 'Batroun', 'Phoenician Wall Street, Bldg 3', '+9616744129'],
+  ['Halba Community Health Center', 'Medical center', 'Akkar', 'Halba', 'Serail Road, Bldg 8', '+9616692410'],
+  ['Old Port Medical Center', 'Medical center', 'South', 'Sidon', 'Riad Al Solh Street, Bldg 30', '+9617731552'],
+  ['Citrus Grove Hospital', 'Hospital', 'South', 'Tyre', 'Southern Boulevard, Km 2', '+9617349811'],
+  ['Nabatieh Hills Clinic', 'Private clinic', 'Nabatieh', 'Nabatieh', 'Hassan Kamel Al Sabbah Street, Bldg 5', '+9617765204'],
+  ['Vineyard Medical Center', 'Medical center', 'Bekaa', 'Zahle', 'Boulevard Street, Berdawni Bldg', '+9618812637'],
+  ['Temple Road Polyclinic', 'Polyclinic', 'Baalbek-Hermel', 'Baalbek', 'Ras El Ain Road, Bldg 2', '+9618370945'],
+];
 const APPOINTMENT_STATUSES = ['pending', 'confirmed', 'declined', 'cancelled', 'completed', 'no_show'];
 const FREQUENCIES = ['Once daily', 'Twice daily', 'Three times daily', 'Four times daily', 'Every 8 hours', 'Every 12 hours', 'At bedtime', 'As needed', 'Once weekly'];
 
@@ -58,6 +76,17 @@ async function seedLookups() {
   }
 }
 
+async function seedClinics() {
+  for (const [name, type, governorate, city, address, phone] of CLINICS) {
+    const clinicType = await prisma.clinicType.findUnique({ where: { desc: type } });
+    const place = await prisma.city.findFirst({ where: { name: city, governorate: { name: governorate } } });
+    await prisma.clinic.upsert({
+      where: { name }, update: {},
+      create: { name, address, phone, clinicTypeId: clinicType.id, cityId: place.id },
+    });
+  }
+}
+
 // The first administrator. Admins cannot sign up: this is how the first one gets an account.
 async function seedAdmin() {
   const { name, email, password, phone } = config.admin;
@@ -81,10 +110,11 @@ async function seedAdmin() {
 
 try {
   await seedLookups();
+  await seedClinics();
   await seedAdmin();
   const counts = {
     specialties: await prisma.specialty.count(), governorates: await prisma.governorate.count(), cities: await prisma.city.count(),
-    insurances: await prisma.insurance.count(), bloodTypes: await prisma.bloodType.count(), statuses: await prisma.appointmentStatus.count(),
+    insurances: await prisma.insurance.count(), clinics: await prisma.clinic.count(), bloodTypes: await prisma.bloodType.count(), statuses: await prisma.appointmentStatus.count(),
   };
   console.log('Seed complete:', counts);
 } finally {

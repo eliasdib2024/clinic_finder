@@ -1462,4 +1462,14 @@ export default {
   "Your other devices were signed out.": "تم تسجيل الخروج من أجهزتك الأخرى.",
   "Your password was just changed from another session. Please sign in again.": "تم تغيير كلمة المرور للتو من جلسة أخرى. يرجى تسجيل الدخول مجددًا.",
   "Your password has been changed. Your other devices were signed out.": "تم تغيير كلمة المرور. تم تسجيل الخروج من أجهزتك الأخرى.",
+  // Profile updates saved in the database
+  "Each degree needs a name, an institution and a year between 1950 and {0}.": "يجب أن تتضمن كل شهادة اسمًا ومؤسسة وسنة بين 1950 و{0}.",
+  "Keep the note under 500 characters.": "يجب ألا تتجاوز الملاحظة 500 حرف.",
+  "Choose a valid option.": "اختر خيارًا صالحًا.",
+  "We sent a 6-digit code to {0}. Confirm your new email address to continue.": "أرسلنا رمزًا من 6 أرقام إلى {0}. أكّد عنوان بريدك الإلكتروني الجديد للمتابعة.",
+  "Choose languages from the list.": "اختر اللغات من القائمة.",
+  "Choose insurers from the list.": "اختر شركات التأمين من القائمة.",
+  "Administrator accounts cannot be deactivated here.": "لا يمكن تعطيل حسابات المسؤولين من هنا.",
+  "Too many failed sign-in attempts for this account. Please wait 15 minutes and try again.": "محاولات تسجيل دخول فاشلة كثيرة لهذا الحساب. يرجى الانتظار 15 دقيقة ثم المحاولة مرة أخرى.",
+  "Too many failed sign-in attempts from this network. Please wait 15 minutes and try again.": "محاولات تسجيل دخول فاشلة كثيرة من هذه الشبكة. يرجى الانتظار 15 دقيقة ثم المحاولة مرة أخرى.",
 };

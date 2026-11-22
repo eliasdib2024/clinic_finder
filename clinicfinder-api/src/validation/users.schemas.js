@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { fullName, phone, pagination, newPassword } from './common.schemas.js';
+import { fullName, phone, pagination, newPassword, email, id, language } from './common.schemas.js';
 
 // PATCH /users/me/password – Settings → Password
 export const changePasswordBody = z.object({
@@ -24,11 +24,21 @@ export const updateStatusBody = z.object({
 });
 
 // PATCH /users/me – the signed-in user edits their own account
+// PATCH /users/me – Settings → Profile (all roles) and Settings → Preferences
+// Changing the email makes the account unverified again and sends a code to the NEW address.
 export const updateMeBody = z.object({
   name: fullName,
+  email,
   phone,
-  language: z.enum(['en', 'fr', 'ar']),
+  genderId: id.nullable(),          // null = "Prefer not to say"
+  language,
   notifications: z.object({
     email: z.boolean(), sms: z.boolean(), reminders: z.boolean(), newBooking: z.boolean(), marketing: z.boolean(),
   }).partial().strict(),
 }).partial().strict().refine((d) => Object.keys(d).length > 0, 'Send at least one field.');
+
+// POST /users/me/deactivate – Settings → Danger zone. The user types their email to confirm.
+export const deactivateMeBody = z.object({
+  confirmEmail: z.string({ error: 'Type your email address to confirm.' }).trim().toLowerCase()
+    .min(1, 'Type your email address to confirm.'),
+}).strict();

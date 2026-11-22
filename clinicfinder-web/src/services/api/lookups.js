@@ -42,3 +42,39 @@ export async function insuranceIdFor(appInsurerId) {
 export const appSpecialtyId = (name) => getDb().catalog.specialties.find((s) => same(s.name, name))?.id ?? '';
 export const appInsurerId = (name) => (name ? getDb().catalog.insurers.find((i) => same(i.name, name))?.id ?? '' : '');
 export const appGovernorateId = (name) => (name ? GOVERNORATES.find((g) => same(g.name, name))?.id ?? '' : '');
+
+// ---- profile fields (Settings → Profile, practice profile) ----
+
+const GENDER_NAMES = { f: 'Female', m: 'Male' };
+
+/** 'f' | 'm' | '' → the API gender id (null = prefer not to say) */
+export async function genderIdFor(appGender) {
+  if (!appGender) return null;
+  const { genders } = await loadLookups();
+  return genders.find((g) => same(g.name, GENDER_NAMES[appGender]))?.id ?? null;
+}
+
+/** App clinic id (from the clinic list) → API clinic id, matched by name */
+export async function clinicIdFor(appClinicId) {
+  if (!appClinicId) return null;
+  const { clinics } = await loadLookups();
+  const name = getDb().clinics.find((c) => c.id === appClinicId)?.name;
+  return clinics.find((c) => same(c.name, name))?.id ?? null;
+}
+
+/** App language ids ('ar', 'en'…) → API language ids */
+export async function languageIdsFor(appIds = []) {
+  const { languages } = await loadLookups();
+  const names = appIds.map((id) => appName(getDb().catalog.languages, id));
+  return names.map((n) => languages.find((l) => same(l.name, n))?.id).filter(Boolean);
+}
+
+/** App insurer ids ('nssf'…) → API insurance ids */
+export async function insuranceIdsFor(appIds = []) {
+  return (await Promise.all(appIds.map(insuranceIdFor))).filter(Boolean);
+}
+
+// Reverse direction, used by the bridge
+export const appGender = (gender) => (gender ? Object.keys(GENDER_NAMES).find((k) => same(GENDER_NAMES[k], gender.name)) ?? '' : '');
+export const appClinicId = (name) => (name ? getDb().clinics.find((c) => same(c.name, name))?.id ?? null : null);
+export const appLanguageId = (name) => getDb().catalog.languages.find((l) => same(l.name, name))?.id;

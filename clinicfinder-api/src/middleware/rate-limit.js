@@ -1,18 +1,38 @@
-import { rateLimit } from 'express-rate-limit';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { HttpError } from '../errors/http-error.js';
 import { config } from '../config/env.js';
 
 const tooMany = (message) => (req, res, next) => next(new HttpError(429, message));
 const common = { standardHeaders: 'draft-8', legacyHeaders: false, skip: () => config.isTest };
 
-// Slows down password guessing: 10 FAILED sign-ins per 15 minutes per IP (successful ones are not counted)
-export const loginLimiter = rateLimit({
+// Sign-in protection – only FAILED attempts are counted (a correct password never uses up the allowance).
+//
+// 1. Per account: 10 failures in 15 minutes for one email from one network → that email is paused there.
+//    Other accounts on the same network (same Wi-Fi, same clinic) can still sign in.
+// 2. Per network: 50 failures in 15 minutes from one IP, whatever the emails → stops someone trying
+//    one password against many accounts.
+const loginEmail = (req) => String(req.body?.email ?? '').trim().toLowerCase();
+
+const loginAccountLimiter = rateLimit({
   ...common,
   windowMs: 15 * 60 * 1000,
   limit: 10,
   skipSuccessfulRequests: true,
-  handler: tooMany('Too many failed sign-in attempts. Please wait 15 minutes and try again.'),
+  keyGenerator: (req) => `login:${ipKeyGenerator(req.ip)}:${loginEmail(req)}`,
+  handler: tooMany('Too many failed sign-in attempts for this account. Please wait 15 minutes and try again.'),
 });
+
+const loginNetworkLimiter = rateLimit({
+  ...common,
+  windowMs: 15 * 60 * 1000,
+  limit: 50,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `login-network:${ipKeyGenerator(req.ip)}`,
+  handler: tooMany('Too many failed sign-in attempts from this network. Please wait 15 minutes and try again.'),
+});
+
+// Used as one middleware in the route: both checks run, in this order
+export const loginLimiter = [loginNetworkLimiter, loginAccountLimiter];
 
 // Stops mass account creation: 10 NEW accounts per hour per IP (a form with mistakes is not counted)
 export const signupLimiter = rateLimit({
@@ -71,11 +91,14 @@ export const verifyEmailLimiter = rateLimit({
   handler: tooMany('Too many incorrect codes. Please wait 15 minutes and try again.'),
 });
 
-// New codes: 5 per hour per account (stops inbox flooding), on top of the 60-second gap between two codes
+// New codes: 5 SENT codes per hour per account (stops inbox flooding), on top of the 60-second gap.
+// Refused requests (still in the 60 s gap, already verified) are not counted, so a user who presses
+// "Resend" too early does not use up the hour's allowance.
 export const resendVerificationLimiter = rateLimit({
   ...common,
   windowMs: 60 * 60 * 1000,
   limit: 5,
+  skipFailedRequests: true,
   keyGenerator: (req) => `resend-verification:${req.user.id}`,
   handler: tooMany('Too many codes were requested. Please try again in an hour.'),
 });

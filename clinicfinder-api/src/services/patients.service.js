@@ -10,13 +10,13 @@ import { sessionFor } from './auth.service.js';
 import { sendFirstCode } from './email-verification.service.js';
 
 // Step 1 of patient sign-up: create the account and sign the patient in
-export async function register({ name, email, phone, password }) {
+export async function register({ name, email, phone, password, language }) {
   if (await usersRepository.existsByEmail(email)) {
     throw conflict('An account with this email already exists.', [{ field: 'email', message: 'An account with this email already exists.' }]);
   }
 
   const user = await patientsRepository.createWithUser({
-    fullName: name, email, phone, passwordHash: await hashPassword(password),
+    fullName: name, email, phone, language, passwordHash: await hashPassword(password),
   });
 
   await Promise.all([

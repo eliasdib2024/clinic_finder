@@ -109,6 +109,7 @@ users: 0
 | `npm run db:deploy` | Production: applies existing migrations and never creates new ones |
 | `npm run db:studio` | Opens Prisma Studio, a browser UI to view and edit the data |
 | `npm run db:test` | Checks that the database connection works |
+| `npm run mail:test -- you@example.com` | Sends one test email with the `.env` mail settings |
 
 ---
 
@@ -217,6 +218,27 @@ Three public endpoints under `/api/v1/auth`. The frontend's 3-step "Forgot passw
 
 ---
 
+## Profiles (Settings and practice profile)
+
+Every profile form saves to the database. Each one is validated twice: in the frontend before sending,
+and again here with Zod (+ checks that every id exists). Errors use the same problem-details format.
+
+| Form | Endpoint | Columns written |
+|---|---|---|
+| Settings → Profile (all roles) | `PATCH /users/me` | `user_full_name`, `user_email`, `user_phone`, `gender_id` (a new email sets `user_email_verified = false` and sends a code to the new address) |
+| Settings → Language / Notifications | `PATCH /users/me` | `user_language`, `notify_*` |
+| Patient sign-up step 2 | `PUT /patients/me/health-profile` | `patient_dob`, `city_id`, `blood_id`, `insurance_id`, `patient_insurance_number`, `patient_no_known_allergies`, `patient_allergies` rows, **`patient_onboarding = done`** |
+| Settings → Health & insurance | `PATCH /patients/me/health-profile` | the same columns + `patient_emergency_contact` |
+| Settings → Password | `PATCH /users/me/password` | `user_password_hash` |
+| Settings → Danger zone | `POST /users/me/deactivate` | `user_status = deactivated`, `user_status_reason` |
+| Doctor → Practice profile | `PATCH /doctors/me` | `clinic_id`, `practice_name`, `practice_address`, `practice_phone`, `city_id`, `doctor_fee`, `doctor_experience`, `doctor_bio`, `doctor_video_consult`, `doctor_languages`, `doctor_insurances`, `doctor_educations` rows |
+| Doctor → Re-submit application | `POST /doctors/me/verification` | `doctor_license`, `verification_status = pending`, `verification_resubmitted`, `verification_note` |
+
+`patient_onboarding` is `pending` from sign-up until the patient saves the health-profile step, then `done`.
+While it is `pending`, the frontend keeps the patient on the "Complete your profile" page.
+
+`GET /lookups` also returns `genders` and `clinics` (seeded by `npm run db:seed`).
+
 ## Database conventions
 
 - **Tables** are plural and snake_case: `users`, `doctor_languages`, `appointment_histories`.
@@ -261,6 +283,10 @@ Never edit a migration that has already been applied or shared. Create a new one
 - **Email (Amazon SES):** verify the `clinicfinder.lb` domain in SES (add the DKIM and SPF DNS records it gives you), request production access (new SES accounts can only send to verified addresses), then create **SMTP credentials** in the SES console and set `MAIL_TRANSPORT=smtp`, `SMTP_HOST=email-smtp.<region>.amazonaws.com`, `SMTP_PORT=587`, `SMTP_USER` and `SMTP_PASS`. The API refuses to start in production with `MAIL_TRANSPORT=console`.
 
 ---
+
+## Testing email verification and forgot password
+
+See [TESTING.md](TESTING.md) for the full checklist (console mode, real Gmail emails, edge cases).
 
 ## Troubleshooting
 

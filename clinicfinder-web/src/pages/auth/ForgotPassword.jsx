@@ -56,7 +56,7 @@ export default function ForgotPassword() {
 
   const checkCode = async (e) => {
     e.preventDefault();
-    if (!/^\d{6}$/.test(code)) { setErrors({ code: 'Enter all 6 digits.' }); return; }
+    if (!/^\d{6}$/.test(code)) { setErrors({ code: tx('Enter all 6 digits.') }); return; }
     if (attemptsLeft <= 0) return;
     setBusy(true);
     try {

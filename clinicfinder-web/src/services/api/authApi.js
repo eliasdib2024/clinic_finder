@@ -1,7 +1,7 @@
 // Account endpoints of clinicfinder-api. Each function returns the user in the app's shape.
 import { http, setApiToken, getApiToken, replaceApiToken } from '../http';
 import { ApiError } from '../db';
-import { tx } from '../../lib/i18n';
+import { tx, getLang } from '../../lib/i18n';
 import { mirrorUser, closeMockSession } from './bridge';
 import { specialtyIdFor, cityIdFor, bloodTypeIdFor, insuranceIdFor } from './lookups';
 import { SUPPORT_EMAIL } from '../../lib/constants';
@@ -11,7 +11,7 @@ const txApi = (msg) => (typeof msg === 'string' && msg.includes(SUPPORT_EMAIL)
   ? tx(msg.split(SUPPORT_EMAIL).join('{0}'), { 0: SUPPORT_EMAIL })
   : tx(msg));
 
-const translated = (err) => {
+export const translated = (err) => {
   if (err instanceof ApiError) {
     err.message = txApi(err.message);
     if (err.fields) for (const k of Object.keys(err.fields)) err.fields[k] = txApi(err.fields[k]);
@@ -40,6 +40,7 @@ export async function signup(data) {
       phone: data.phone,
       password: data.password,
       acceptTerms: !!data.acceptTerms,
+      language: getLang(),   // the verification email is sent in the language the user is browsing in
     };
     let session;
     if (data.role === 'doctor') {
@@ -90,6 +91,24 @@ export async function completeOnboarding(v) {
       noKnownAllergies: !!v.noKnownAllergies,
     }, { fieldMap: { cityId: 'city', bloodTypeId: 'bloodType' } });
     return await mirrorUser(user);
+  } catch (err) { throw translated(err); }
+}
+
+// ---- Settings → Preferences ----
+
+const NOTIFICATION_KEYS = ['email', 'sms', 'reminders', 'newBooking', 'marketing'];
+
+/** Saves the language and notification choices in the database (emails are sent in this language). */
+export async function updateSettings(patch) {
+  const body = {};
+  if (patch.language) body.language = patch.language;
+  if (patch.notifications) {
+    const n = Object.fromEntries(Object.entries(patch.notifications).filter(([k]) => NOTIFICATION_KEYS.includes(k)));
+    if (Object.keys(n).length) body.notifications = n;
+  }
+  if (!Object.keys(body).length) return null;   // nothing the API stores
+  try {
+    return await mirrorUser(await http.patch('/users/me', body));
   } catch (err) { throw translated(err); }
 }
 

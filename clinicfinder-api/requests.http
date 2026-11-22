@@ -68,6 +68,43 @@ Content-Type: application/json
 { "name": "Lina Khoury", "email": "lina@clinic.lb", "phone": "+961 71 222 333", "password": "Secret#123",
   "specialtyId": 2, "licenseNumber": "18342", "cityId": 2, "acceptTerms": true }
 
+### My doctor account (practice profile included)
+GET {{base}}/doctors/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+
+### Practice profile – own practice (ids come from GET /lookups: clinics, cities, languages, insurances)
+PATCH {{base}}/doctors/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+Content-Type: application/json
+
+{ "clinicId": null,
+  "practice": { "name": "Khoury Clinic", "address": "Bliss Street, Bldg 7, 2nd floor", "phone": "01 234 567" },
+  "cityId": 2, "fee": 60, "experience": 12, "videoConsult": true,
+  "bio": "Cardiologist focused on prevention.",
+  "languageIds": [1, 2], "insuranceIds": [1],
+  "education": [{ "degree": "MD", "institution": "American University of Beirut", "year": 2010 }] }
+
+### Practice profile – work at a listed clinic (the location is taken from the clinic)
+PATCH {{base}}/doctors/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+Content-Type: application/json
+
+{ "clinicId": 1 }
+
+### Invalid practice profile -> 422 listing every field
+PATCH {{base}}/doctors/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+Content-Type: application/json
+
+{ "fee": 5000, "experience": 70, "languageIds": [], "education": [{ "degree": "MD", "institution": "AUB", "year": 2999 }] }
+
+### Re-submit a REJECTED application (409 while it is pending or approved)
+POST {{base}}/doctors/me/verification
+Authorization: Bearer {{doctorSignup.response.body.token}}
+Content-Type: application/json
+
+{ "licenseNumber": "18343", "note": "Corrected a typo in my license number." }
+
 ########## SIGN IN ##########
 
 ### Wrong password -> 401 (same message as an unknown email)
@@ -156,6 +193,34 @@ Authorization: Bearer {{doctorSignup.response.body.token}}
 Content-Type: application/json
 
 { "language": "fr", "notifications": { "sms": true } }
+
+### Settings → Profile: name, phone, gender (genderId from GET /lookups, null = prefer not to say)
+PATCH {{base}}/users/me
+Authorization: Bearer {{patientSignup.response.body.token}}
+Content-Type: application/json
+
+{ "name": "Nadine Khalil Haddad", "phone": "71 999 888", "genderId": 1 }
+
+### Settings → Profile: change the email -> emailVerified becomes false, a code is sent to the NEW address
+PATCH {{base}}/users/me
+Authorization: Bearer {{patientSignup.response.body.token}}
+Content-Type: application/json
+
+{ "email": "nadine.new@example.com" }
+
+### Settings → Health: emergency contact (any part of the health profile can be sent)
+PATCH {{base}}/patients/me/health-profile
+Authorization: Bearer {{patientSignup.response.body.token}}
+Content-Type: application/json
+
+{ "emergencyContact": "03 444 555" }
+
+### Settings → Danger zone: deactivate my account (type the account's email) -> 204, signed out everywhere
+POST {{base}}/users/me/deactivate
+Authorization: Bearer {{patientSignup.response.body.token}}
+Content-Type: application/json
+
+{ "confirmEmail": "nadine.new@example.com" }
 
 ########## FORGOT PASSWORD ##########
 ### With MAIL_TRANSPORT=console the email (and its code) is printed in the API terminal.

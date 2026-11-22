@@ -45,14 +45,21 @@ export default function PracticeProfile() {
   const save = async () => {
     const errs = {};
     if (vFee(form.fee)) errs.fee = vFee(form.fee);
-    if (!form.languages.length) errs.languages = 'Select at least one language.';
+    const years = Number(form.experience);
+    if (form.experience === '' || !Number.isInteger(years) || years < 0 || years > 60) errs.experience = tx('Enter years of experience between 0 and 60.');
+    if ((form.bio || '').length > 1200) errs.bio = tx('Keep your biography under 1,200 characters.');
+    if (!form.languages.length) errs.languages = tx('Select at least one language.');
     if (ownPractice) {
-      if (!form.practice.name.trim()) errs['practice.name'] = 'Practice name is required.';
-      if (!form.practice.address.trim()) errs['practice.address'] = 'Address is required.';
+      if (!form.practice.name.trim()) errs['practice.name'] = tx('Practice name is required.');
+      if (!form.practice.address.trim()) errs['practice.address'] = tx('Address is required.');
       if (form.practice.phone && lebanesePhone(form.practice.phone)) errs['practice.phone'] = lebanesePhone(form.practice.phone);
-      if (!citiesOf(form.governorate).includes(form.city)) errs.city = 'Choose a city.';
+      if (!citiesOf(form.governorate).includes(form.city)) errs.city = tx('Choose a city.');
     }
-    form.education.forEach((e, i) => { if (!e.degree.trim() || !e.institution.trim()) errs[`edu${i}`] = 'Degree and institution are required.'; if (e.year && !/^(19|20)\d{2}$/.test(e.year)) errs[`edu${i}`] = 'Enter a valid year.'; });
+    const thisYear = new Date().getFullYear();
+    form.education.forEach((e, i) => {
+      if (!e.degree.trim() || !e.institution.trim()) errs[`edu${i}`] = tx('Degree and institution are required.');
+      else if (!/^\d{4}$/.test(String(e.year)) || Number(e.year) < 1950 || Number(e.year) > thisYear) errs[`edu${i}`] = tx('Enter a valid year.');
+    });
     setErrors(errs);
     if (Object.keys(errs).length) { toast.error(tx('Check the highlighted fields')); return; }
     setBusy(true);
@@ -66,9 +73,14 @@ export default function PracticeProfile() {
   };
 
   const doResubmit = async () => {
-    const d = await resubmitVerification(resub);
-    setData(d);
-    toast.success(tx('Application re-submitted'), { body: tx('An administrator will review it again.') });
+    try {
+      const d = await resubmitVerification(resub);
+      setData(d);
+      toast.success(tx('Application re-submitted'), { body: tx('An administrator will review it again.') });
+    } catch (e) {
+      toast.error(tx('Not saved'), { body: e.fields?.licenseNumber || e.message });
+      throw e;   // keeps the dialog open
+    }
   };
 
   return (
@@ -153,6 +165,7 @@ export default function PracticeProfile() {
                 {errors[`edu${i}`] && <span className="field-error">{errors[`edu${i}`]}</span>}
               </div>
             ))}
+            {errors.education && <span className="field-error" role="alert">{errors.education}</span>}
           </section>
         </div>
 
@@ -171,6 +184,7 @@ export default function PracticeProfile() {
             <h2 id="in-h" style={{ fontSize: 16 }}>{tx('Accepted insurance')}</h2>
             <ChipSelect label={tx('Insurance')} options={insurers} value={form.insurances} onChange={(v) => set('insurances', v)} />
             <span className="tiny muted">{tx('Patients filtering by “only my insurance” will find you.')}</span>
+            {errors.insurances && <span className="field-error" role="alert">{errors.insurances}</span>}
           </section>
           <section className="panel panel-pad stack small">
             <h2 style={{ fontSize: 16 }}>{tx('License')}</h2>

@@ -13,7 +13,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "db:test": "node scripts/test-db.js"
+    "db:test": "node scripts/test-db.js",
+    "mail:test": "node scripts/test-mail.js"
   },
   "keywords": [],
   "author": "",

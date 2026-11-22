@@ -7,7 +7,7 @@
 import { request, newId, setToken, getToken } from '../db';
 import { publicUser } from '../serializers';
 import { defaultSchedule } from '../../lib/schedule';
-import { appSpecialtyId, appInsurerId, appGovernorateId } from './lookups';
+import { appSpecialtyId, appInsurerId, appGovernorateId, appGender, appClinicId, appLanguageId } from './lookups';
 
 function patientFrom(p) {
   return {
@@ -28,7 +28,8 @@ function patientFrom(p) {
 export function mirrorUser(apiUser, { remember = true } = {}) {
   return request((db) => {
     const email = apiUser.email.toLowerCase();
-    let user = db.users.find((u) => u.email.toLowerCase() === email);
+    // By API id first: after an email change the address is new, but it is the same person
+    let user = db.users.find((u) => u.apiId === apiUser.id) || db.users.find((u) => u.email.toLowerCase() === email);
     if (!user) {
       user = { id: newId('u'), createdAt: apiUser.createdAt, passwordHash: '', gender: '' };
       db.users.push(user);
@@ -39,6 +40,7 @@ export function mirrorUser(apiUser, { remember = true } = {}) {
       name: apiUser.name,
       email,
       phone: apiUser.phone,
+      gender: appGender(apiUser.gender),
       status: apiUser.status,
       emailVerified: apiUser.emailVerified,   // false → the guards send the user to /verify-email
       settings: { ...(user.settings || {}), language: apiUser.language, notifications: { ...apiUser.notifications } },
@@ -64,9 +66,19 @@ export function mirrorUser(apiUser, { remember = true } = {}) {
         licenseNumber: d.licenseNumber,
         governorate: appGovernorateId(d.governorate?.name),
         city: d.city?.name ?? '',
+        // Practice profile – the database is the source of truth
+        clinicId: appClinicId(d.clinic?.name),
+        practice: { name: d.practiceName || '', address: d.practiceAddress || '', phone: d.practicePhone || '' },
+        fee: d.fee,
+        experience: d.experience ?? 0,
+        bio: d.bio || '',
+        videoConsult: !!d.videoConsult,
+        languages: (d.languages || []).map((l) => appLanguageId(l.name)).filter(Boolean),
+        insurances: (d.insurances || []).map((i) => appInsurerId(i.name)).filter(Boolean),
+        education: (d.education || []).map(({ degree, institution, year }) => ({ degree, institution, year })),
         verification: {
-          status: d.verification.status, reason: d.verification.reason || '', resubmitted: false,
-          submittedAt: d.verification.submittedAt, reviewedAt: d.verification.reviewedAt,
+          status: d.verification.status, reason: d.verification.reason || '', resubmitted: !!d.verification.resubmitted,
+          note: d.verification.note || '', submittedAt: d.verification.submittedAt, reviewedAt: d.verification.reviewedAt,
         },
       });
     }

@@ -16,8 +16,31 @@ export const createWithUser = (user, doctor) =>
     include: USER_PROFILE_INCLUDE,
   });
 
-export const existsByLicense = async (license) =>
-  (await prisma.doctor.count({ where: { license } })) > 0;
+// exceptDoctorId: when a doctor re-submits, their own license does not count as "taken"
+export const existsByLicense = async (license, exceptDoctorId) =>
+  (await prisma.doctor.count({ where: { license, ...(exceptDoctorId && { id: { not: exceptDoctorId } }) } })) > 0;
+
+export const findByUserId = (userId) =>
+  prisma.doctor.findUnique({ where: { userId }, select: { id: true, clinicId: true, license: true, verificationStatus: true } });
+
+// Updates the doctor row and replaces (when given) languages, insurances and education – all or nothing
+export async function updateProfile(doctorId, data, { languageIds, insuranceIds, education } = {}) {
+  await prisma.$transaction(async (tx) => {
+    await tx.doctor.update({ where: { id: doctorId }, data });
+    if (languageIds) {
+      await tx.doctorLanguage.deleteMany({ where: { doctorId } });
+      await tx.doctorLanguage.createMany({ data: languageIds.map((languageId) => ({ doctorId, languageId })) });
+    }
+    if (insuranceIds) {
+      await tx.doctorInsurance.deleteMany({ where: { doctorId } });
+      if (insuranceIds.length) await tx.doctorInsurance.createMany({ data: insuranceIds.map((insuranceId) => ({ doctorId, insuranceId })) });
+    }
+    if (education) {
+      await tx.doctorEducation.deleteMany({ where: { doctorId } });
+      if (education.length) await tx.doctorEducation.createMany({ data: education.map((e) => ({ doctorId, ...e })) });
+    }
+  });
+}
 
 export async function list({ verification }, { page, pageSize }) {
   const where = verification ? { verificationStatus: verification } : {};
