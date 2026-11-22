@@ -1,0 +1,223 @@
+### ClinicFinder API – account requests
+### VS Code: install the "REST Client" extension, then click "Send Request" above each request.
+### Run in order: the tokens from sign-up / sign-in are reused by the requests below them.
+
+@base = http://localhost:3000/api/v1
+
+### Health check (API + database)
+GET http://localhost:3000/health
+
+### Reference data for the forms (specialties, governorates + cities, insurances, blood types, languages)
+GET {{base}}/lookups
+
+########## PATIENT ##########
+
+### Create a patient account -> 201 { token, user }
+# @name patientSignup
+POST {{base}}/patients
+Content-Type: application/json
+
+{ "name": "Nadine Khalil", "email": "nadine@example.com", "phone": "03 123 456",
+  "password": "Secret#123", "acceptTerms": true }
+
+### Invalid data -> 422 with every problem listed
+POST {{base}}/patients
+Content-Type: application/json
+
+{ "name": "N", "email": "not-an-email", "phone": "123", "password": "weak", "acceptTerms": false }
+
+### Same email again -> 409
+POST {{base}}/patients
+Content-Type: application/json
+
+{ "name": "Nadine K", "email": "NADINE@example.com", "phone": "71 123 456",
+  "password": "Secret#123", "acceptTerms": true }
+
+### Sign in as the patient
+# @name patientLogin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "nadine@example.com", "password": "Secret#123" }
+### Step 2: health profile (ids come from GET /lookups) -> onboarding = done
+PUT {{base}}/patients/me/health-profile
+Authorization: Bearer {{patientLogin.response.body.token}}
+Content-Type: application/json
+
+{ "dob": "1990-05-14", "cityId": 2, "bloodTypeId": 1, "insuranceId": 1, "insuranceNumber": "NS-4411",
+  "allergies": ["Penicillin"], "noKnownAllergies": false }
+
+### Change part of the health profile later
+PATCH {{base}}/patients/me/health-profile
+Authorization: Bearer {{patientLogin.response.body.token}}
+Content-Type: application/json
+
+{ "insuranceId": null }
+
+### My patient account
+GET {{base}}/patients/me
+Authorization: Bearer {{patientLogin.response.body.token}}
+
+########## DOCTOR ##########
+
+### Create a doctor account -> 201, verification = pending
+# @name doctorSignup
+POST {{base}}/doctors
+Content-Type: application/json
+
+{ "name": "Lina Khoury", "email": "lina@clinic.lb", "phone": "+961 71 222 333", "password": "Secret#123",
+  "specialtyId": 2, "licenseNumber": "18342", "cityId": 2, "acceptTerms": true }
+
+########## SIGN IN ##########
+
+### Wrong password -> 401 (same message as an unknown email)
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@clinicfinder.lb", "password": "wrong" }
+
+### Administrator (account created by npm run db:seed)
+# @name adminLogin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@clinicfinder.lb", "password": "Change-Me-Now#2026", "remember": true }
+
+### Who am I?
+GET {{base}}/auth/me
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+########## ADMIN: DOCTOR APPLICATIONS ##########
+
+### Pending applications
+GET {{base}}/doctors?verification=pending
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+### One application
+GET {{base}}/doctors/{{doctorSignup.response.body.user.doctor.id}}
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+### Approve
+PATCH {{base}}/doctors/{{doctorSignup.response.body.user.doctor.id}}/verification
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "approved" }
+
+### Reject (a reason is required)
+PATCH {{base}}/doctors/{{doctorSignup.response.body.user.doctor.id}}/verification
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "rejected", "reason": "The license number does not match the Order's register." }
+
+########## ADMIN: USERS ##########
+
+
+### List users (filters: role, status, search, page, pageSize)
+### List users
+# @name listUsers
+GET {{base}}/users?role=patient&search=nadine
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+GET {{base}}/users/{{listUsers.response.body.$.items[0].id}}
+
+### One user
+GET {{base}}/users/{{patientLogin.response.body.user.id}}
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+### Suspend (reason required) – the user is signed out at once
+PATCH {{base}}/users/{{patientLogin.response.body.user.id}}/status
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "suspended", "reason": "Repeated no-shows" }
+
+### Reactivate
+PATCH {{base}}/users/{{patientLogin.response.body.user.id}}/status
+Authorization: Bearer {{adminLogin.response.body.token}}
+Content-Type: application/json
+
+{ "status": "active" }
+
+### Delete -> 204 (409 if the account has appointments or prescriptions: deactivate it instead)
+DELETE {{base}}/users/{{patientLogin.response.body.user.id}}
+Authorization: Bearer {{adminLogin.response.body.token}}
+
+########## MY ACCOUNT (any role) ##########
+
+### My account
+GET {{base}}/users/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+
+### Update my settings
+PATCH {{base}}/users/me
+Authorization: Bearer {{doctorSignup.response.body.token}}
+Content-Type: application/json
+
+{ "language": "fr", "notifications": { "sms": true } }
+
+########## FORGOT PASSWORD ##########
+### With MAIL_TRANSPORT=console the email (and its code) is printed in the API terminal.
+
+### Step 1: ask for a code -> 202 (the same answer whether or not the email has an account)
+POST {{base}}/auth/forgot-password
+Content-Type: application/json
+
+{ "email": "nadine@example.com" }
+
+### Unknown email -> the same 202 answer, but no email is sent
+POST {{base}}/auth/forgot-password
+Content-Type: application/json
+
+{ "email": "nobody@example.com" }
+
+### Step 2: check the code from the email -> 200 { resetToken, expiresInMinutes }
+### Replace 123456 with the code printed in the API terminal. Wrong code -> 422 (5 attempts per code)
+# @name verifyCode
+POST {{base}}/auth/verify-reset-code
+Content-Type: application/json
+
+{ "email": "nadine@example.com", "code": "123456" }
+
+### Step 3: set the new password -> 200. Every existing sign-in token stops working.
+POST {{base}}/auth/reset-password
+Content-Type: application/json
+
+{ "resetToken": "{{verifyCode.response.body.resetToken}}", "password": "NewSecret#456" }
+
+### The same reset token again -> 400 (one-time use)
+POST {{base}}/auth/reset-password
+Content-Type: application/json
+
+{ "resetToken": "{{verifyCode.response.body.resetToken}}", "password": "Another#789" }
+
+### Sign in with the new password -> 200
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{ "email": "nadine@example.com", "password": "NewSecret#456" }
+
+########## EMAIL VERIFICATION ##########
+### Sign up first (PATIENTS section): the response token is used below.
+### With MAIL_TRANSPORT=console the code is printed in the API terminal.
+
+### Confirm the address -> 200 { message, user } with user.emailVerified = true. Wrong code -> 422
+POST {{base}}/auth/verify-email
+Authorization: Bearer {{patientSignup.response.body.token}}
+Content-Type: application/json
+
+{ "code": "123456" }
+
+### Ask for a new code -> 202. Within 60 s of the last one -> 429. Already verified -> 409
+POST {{base}}/auth/resend-verification
+Authorization: Bearer {{patientSignup.response.body.token}}
+
+########## CHANGE PASSWORD (Settings) ##########
+### Same as current -> 422 on newPassword. Wrong current -> 422 on currentPassword
+### Success -> 200 { message, token }: use the new token, every older token now gets 401
+PATCH {{base}}/users/me/password
+Authorization: Bearer {{patientLogin.response.body.token}}
+Content-Type: application/json
+
+{ "currentPassword": "Secret#123", "newPassword": "Changed#456" }
