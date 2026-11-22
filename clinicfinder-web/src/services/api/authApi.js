@@ -1,5 +1,5 @@
 // Account endpoints of clinicfinder-api. Each function returns the user in the app's shape.
-import { http, setApiToken, getApiToken } from '../http';
+import { http, setApiToken, getApiToken, replaceApiToken } from '../http';
 import { ApiError } from '../db';
 import { tx } from '../../lib/i18n';
 import { mirrorUser, closeMockSession } from './bridge';
@@ -90,6 +90,18 @@ export async function completeOnboarding(v) {
       noKnownAllergies: !!v.noKnownAllergies,
     }, { fieldMap: { cityId: 'city', bloodTypeId: 'bloodType' } });
     return await mirrorUser(user);
+  } catch (err) { throw translated(err); }
+}
+
+// ---- Settings → Password ----
+
+/** Changes the password in the database. The API signs out every other device and returns a new token for this one. */
+export async function changePassword(currentPassword, newPassword) {
+  try {
+    const res = await http.patch('/users/me/password', { currentPassword, newPassword },
+      { fieldMap: { currentPassword: 'current', newPassword: 'next' } });
+    replaceApiToken(res.token);   // the old token stopped working when the password changed
+    return { ok: true };
   } catch (err) { throw translated(err); }
 }
 

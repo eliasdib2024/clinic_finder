@@ -212,3 +212,12 @@ Content-Type: application/json
 ### Ask for a new code -> 202. Within 60 s of the last one -> 429. Already verified -> 409
 POST {{base}}/auth/resend-verification
 Authorization: Bearer {{patientSignup.response.body.token}}
+
+########## CHANGE PASSWORD (Settings) ##########
+### Same as current -> 422 on newPassword. Wrong current -> 422 on currentPassword
+### Success -> 200 { message, token }: use the new token, every older token now gets 401
+PATCH {{base}}/users/me/password
+Authorization: Bearer {{patientLogin.response.body.token}}
+Content-Type: application/json
+
+{ "currentPassword": "Secret#123", "newPassword": "Changed#456" }

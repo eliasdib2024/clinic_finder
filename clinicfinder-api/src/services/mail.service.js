@@ -38,6 +38,6 @@ export function sendEmailVerificationCode(user, code) {
   inBackground(() => deliver(user.email, emailVerificationCodeEmail({ name: user.fullName, language: user.language, code }), 'email-verification-code'));
 }
 
-export function sendPasswordChanged(user) {
-  inBackground(() => deliver(user.email, passwordChangedEmail({ name: user.fullName, language: user.language }), 'password-changed'));
+export function sendPasswordChanged(user, { fromSettings = false } = {}) {
+  inBackground(() => deliver(user.email, passwordChangedEmail({ name: user.fullName, language: user.language, fromSettings }), 'password-changed'));
 }

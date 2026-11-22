@@ -179,6 +179,17 @@ Every new patient or doctor gets a 6-digit code by email right after sign-up. Th
 
 ---
 
+## Change password (Settings)
+
+`PATCH /users/me/password` (Bearer token) with `{ currentPassword, newPassword }` → `200 { message, token }`.
+
+- The current password must be correct (`422` on `currentPassword`), and the new one must follow the sign-up rules and **differ from the current one** (`422` on `newPassword`, checked against the stored hash).
+- Saved as `bcrypt(HMAC-SHA256(password, PASSWORD_PEPPER))` in `users.user_password_hash`, in an update that only succeeds if the old hash is still there. A pending "forgot password" code is cancelled.
+- **Every other session is signed out.** This device gets the new `token` in the response (same "keep me signed in" lifetime); the frontend stores it in place of the old one.
+- Email ("changed from your account settings"), in-app notification and admin activity entry. 10 wrong current passwords per 15 minutes per account.
+
+---
+
 ## Forgot password
 
 Three public endpoints under `/api/v1/auth`. The frontend's 3-step "Forgot password" page calls them in order.

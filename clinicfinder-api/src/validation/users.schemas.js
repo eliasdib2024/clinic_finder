@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { fullName, phone, pagination } from './common.schemas.js';
+import { fullName, phone, pagination, newPassword } from './common.schemas.js';
+
+// PATCH /users/me/password – Settings → Password
+export const changePasswordBody = z.object({
+  currentPassword: z.string({ error: 'Enter your current password.' }).min(1, 'Enter your current password.').max(128),
+  newPassword,
+}).strict();
 
 // GET /users – admin list with filters
 export const listUsersQuery = z.object({

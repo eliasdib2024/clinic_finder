@@ -23,6 +23,7 @@ const STRINGS = {
     changedSubject: 'Your ClinicFinder password was changed',
     changedPreview: 'Your password was just changed.',
     changedIntro: 'The password of your ClinicFinder account was changed on {when} (Beirut time). For your security, you were signed out on every device.',
+    changedIntroOthers: 'The password of your ClinicFinder account was changed on {when} (Beirut time) from your account settings. For your security, you were signed out on your other devices.',
     changedOk: 'If this was you, there is nothing else to do.',
     changedNotYou: 'If you did not change it, reset your password now and contact {support}.',
     changedButton: 'Reset my password',
@@ -47,6 +48,7 @@ const STRINGS = {
     changedSubject: 'Votre mot de passe ClinicFinder a été modifié',
     changedPreview: 'Votre mot de passe vient d’être modifié.',
     changedIntro: 'Le mot de passe de votre compte ClinicFinder a été modifié le {when} (heure de Beyrouth). Par sécurité, vous avez été déconnecté de tous vos appareils.',
+    changedIntroOthers: 'Le mot de passe de votre compte ClinicFinder a été modifié le {when} (heure de Beyrouth) depuis les paramètres du compte. Par sécurité, vous avez été déconnecté de vos autres appareils.',
     changedOk: 'Si c’est vous, vous n’avez rien d’autre à faire.',
     changedNotYou: 'Si ce n’est pas vous, réinitialisez votre mot de passe maintenant et contactez {support}.',
     changedButton: 'Réinitialiser mon mot de passe',
@@ -71,6 +73,7 @@ const STRINGS = {
     changedSubject: 'تم تغيير كلمة مرورك في ClinicFinder',
     changedPreview: 'تم تغيير كلمة مرورك للتو.',
     changedIntro: 'تم تغيير كلمة مرور حسابك في ClinicFinder بتاريخ {when} (بتوقيت بيروت). حفاظًا على أمانك، تم تسجيل خروجك من جميع الأجهزة.',
+    changedIntroOthers: 'تم تغيير كلمة مرور حسابك في ClinicFinder بتاريخ {when} (بتوقيت بيروت) من إعدادات الحساب. حفاظًا على أمانك، تم تسجيل خروجك من أجهزتك الأخرى.',
     changedOk: 'إذا كنت أنت من قام بذلك، فلا داعي لأي إجراء آخر.',
     changedNotYou: 'إذا لم تقم بتغييرها، أعد تعيين كلمة المرور الآن وتواصل مع {support}.',
     changedButton: 'إعادة تعيين كلمة المرور',
@@ -152,7 +155,8 @@ export function emailVerificationCodeEmail({ name, language, code }) {
   };
 }
 
-export function passwordChangedEmail({ name, language, when = new Date() }) {
+// fromSettings: changed in Settings (this device stays signed in) rather than reset with an emailed code
+export function passwordChangedEmail({ name, language, when = new Date(), fromSettings = false }) {
   const t = STRINGS[language] ?? STRINGS.en;
   const whenText = new Intl.DateTimeFormat(LOCALES[language] ?? LOCALES.en, {
     dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Beirut',
@@ -161,7 +165,7 @@ export function passwordChangedEmail({ name, language, when = new Date() }) {
   const p = (s) => `<p style="margin:0 0 14px">${esc(s)}</p>`;
   const body = [
     p(fill(t.hello, { name: firstName(name) })),
-    p(fill(t.changedIntro, { when: whenText })),
+    p(fill(fromSettings ? t.changedIntroOthers : t.changedIntro, { when: whenText })),
     p(t.changedOk),
     // Shows support@clinicfinder.lb, but clicking it writes to the real support inbox
     `<p style="margin:0 0 14px">${esc(t.changedNotYou).replace('{support}',
@@ -170,7 +174,7 @@ export function passwordChangedEmail({ name, language, when = new Date() }) {
 
   return {
     subject: t.changedSubject,
-    text: [fill(t.hello, { name: firstName(name) }), '', fill(t.changedIntro, { when: whenText }), '',
+    text: [fill(t.hello, { name: firstName(name) }), '', fill(fromSettings ? t.changedIntroOthers : t.changedIntro, { when: whenText }), '',
       t.changedOk, fill(t.changedNotYou, { support: SUPPORT }), '', link].join('\n'),
     html: layout(t, { preview: t.changedPreview, body, button: { href: link, label: t.changedButton } }),
   };

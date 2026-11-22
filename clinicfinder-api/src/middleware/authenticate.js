@@ -27,7 +27,7 @@ export async function authenticate(req, res, next) {
   }
   if (account.status !== 'active') return next(forbidden(`This account is not active. Contact ${config.supportEmail}.`));
 
-  req.user = { id: account.id, role: account.role, emailVerified: account.emailVerified };
+  req.user = { id: account.id, role: account.role, emailVerified: account.emailVerified, remember: Boolean(payload.rem) };
   next();
 }
 

@@ -153,11 +153,20 @@ function PasswordTab() {
   const set = (k) => (e) => { setV((s) => ({ ...s, [k]: e.target.value })); setErrors((s) => ({ ...s, [k]: '' })); };
   const save = async (e) => {
     e.preventDefault();
-    const errs = validate(v, { current: (x) => (x ? '' : 'Enter your current password.'), next: vPassword, confirm: (x, all) => confirmPassword(all.next, x) });
+    const errs = validate(v, {
+      current: (x) => (x ? '' : 'Enter your current password.'),
+      // Same rule as the API (which also checks it against the stored hash)
+      next: (x, all) => vPassword(x) || (x && x === all.current ? tx('Choose a password different from your current one.') : ''),
+      confirm: (x, all) => confirmPassword(all.next, x),
+    });
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
-    try { await changePassword(v.current, v.next); setV({ current: '', next: '', confirm: '' }); toast.success(tx('Password changed')); }
+    try {
+      await changePassword(v.current, v.next);
+      setV({ current: '', next: '', confirm: '' });
+      toast.success(tx('Password changed'), { body: tx('Your other devices were signed out.') });
+    }
     catch (err) { setErrors(err.fields || { current: err.message }); } finally { setBusy(false); }
   };
   return (

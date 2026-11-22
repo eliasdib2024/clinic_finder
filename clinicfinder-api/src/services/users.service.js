@@ -1,8 +1,53 @@
 // users.service.js – accounts: the user's own settings, and administration. Knows nothing about HTTP.
-import { conflict, forbidden, notFound } from '../errors/http-error.js';
+import { conflict, forbidden, notFound, validationFailed } from '../errors/http-error.js';
 import * as usersRepository from '../repositories/users.repository.js';
 import * as activity from '../repositories/activity.repository.js';
+import * as mail from './mail.service.js';
 import { toUserDto, page } from '../utils/serializers.js';
+import { hashPassword, verifyPassword } from '../utils/password.js';
+import { signAccessToken } from '../utils/jwt.js';
+import { logger } from '../loggers/logger.js';
+
+const log = logger.child({ module: 'users' });
+
+// Settings → Password. The user is signed in, but must still prove they know the current password
+// (someone using an unlocked computer cannot take over the account).
+//   • The new password must differ from the current one: checked against the stored bcrypt hash.
+//   • Saved as bcrypt(HMAC(password, pepper)) in users.user_password_hash.
+//   • Every other session is signed out (their tokens carry the old password fingerprint);
+//     this device receives a fresh token so the user stays signed in here.
+export async function changePassword(userId, { currentPassword, newPassword }, { remember = false } = {}) {
+  const user = await usersRepository.findForPasswordResetById(userId);
+  if (!user) throw notFound('User');
+
+  if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+    log.warn({ userId }, 'change password: wrong current password');
+    throw validationFailed([{ field: 'currentPassword', message: 'Your current password is incorrect.' }]);
+  }
+  if (newPassword === currentPassword || (await verifyPassword(newPassword, user.passwordHash))) {
+    throw validationFailed([{ field: 'newPassword', message: 'Choose a password different from your current one.' }]);
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  const done = await usersRepository.changePassword(user.id, user.passwordHash, passwordHash);
+  if (!done) throw conflict('Your password was just changed from another session. Please sign in again.');
+
+  await Promise.all([
+    activity.logActivity('{0} changed their password', 'user', { 0: user.fullName }),
+    activity.notify(user.id, {
+      title: 'Password changed',
+      body: 'Your password was changed from your account settings. Your other devices were signed out.',
+      kind: 'info',
+    }),
+  ]);
+  mail.sendPasswordChanged(user, { fromSettings: true });
+  log.info({ userId }, 'password changed from settings, other sessions signed out');
+
+  return {
+    message: 'Your password has been changed. Your other devices were signed out.',
+    token: signAccessToken({ ...user, passwordHash }, { remember }),
+  };
+}
 
 export async function list(filters, paging) {
   const { items, total } = await usersRepository.list(filters, paging);

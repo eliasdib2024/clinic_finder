@@ -1458,4 +1458,8 @@ export default {
   "Too many codes were requested. Please try again in an hour.": "تم طلب رموز كثيرة جدًا. حاول مجددًا بعد ساعة.",
   "Please confirm your email address first. Enter the code we emailed you, or ask for a new one.": "يرجى تأكيد بريدك الإلكتروني أولًا. أدخل الرمز الذي أرسلناه إليك أو اطلب رمزًا جديدًا.",
   "Your email address is confirmed.": "تم تأكيد بريدك الإلكتروني.",
+  // Change password (settings)
+  "Your other devices were signed out.": "تم تسجيل الخروج من أجهزتك الأخرى.",
+  "Your password was just changed from another session. Please sign in again.": "تم تغيير كلمة المرور للتو من جلسة أخرى. يرجى تسجيل الدخول مجددًا.",
+  "Your password has been changed. Your other devices were signed out.": "تم تغيير كلمة المرور. تم تسجيل الخروج من أجهزتك الأخرى.",
 };

@@ -190,6 +190,7 @@ export function resetPassword(email, code, newPassword, resetToken) {
 }
 
 export function changePassword(current, next) {
+  if (useApi) return api.changePassword(current, next);   // saved in the users table by the API
   return request((db) => {
     const user = requireUser(db);
     if (user.passwordHash !== hashPassword(current)) throw new ApiError(tx('Your current password is incorrect.'), 400, { current: tx('Your current password is incorrect.') });

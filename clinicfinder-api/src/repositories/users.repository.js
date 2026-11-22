@@ -49,7 +49,7 @@ export async function completeEmailVerification(id, expectedCodeHash) {
 // ---- password reset (only the password-reset service uses these) ----
 
 const RESET_SELECT = {
-  id: true, email: true, fullName: true, status: true, language: true, passwordHash: true, emailVerified: true,
+  id: true, role: true, email: true, fullName: true, status: true, language: true, passwordHash: true, emailVerified: true,
   resetCode: true, resetCodeExpiry: true, resetCodeAttempts: true, resetCodeVerified: true,
 };
 
@@ -94,6 +94,16 @@ export async function completePasswordReset(id, expectedCodeHash, passwordHash, 
         emailVerificationCode: null, emailVerificationExpiry: null, emailVerificationAttempts: 0,
       }),
     },
+  });
+  return count === 1;
+}
+
+// Settings → change password. Conditional on the OLD hash, so two changes sent at the same time
+// cannot both succeed. Any pending "forgot password" code stops working too.
+export async function changePassword(id, expectedOldHash, passwordHash) {
+  const { count } = await prisma.user.updateMany({
+    where: { id, passwordHash: expectedOldHash },
+    data: { passwordHash, resetCode: null, resetCodeExpiry: null, resetCodeAttempts: 0, resetCodeVerified: false },
   });
   return count === 1;
 }

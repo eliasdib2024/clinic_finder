@@ -79,3 +79,13 @@ export const resendVerificationLimiter = rateLimit({
   keyGenerator: (req) => `resend-verification:${req.user.id}`,
   handler: tooMany('Too many codes were requested. Please try again in an hour.'),
 });
+
+// Settings → change password: 10 wrong current passwords per 15 minutes per account
+export const changePasswordLimiter = rateLimit({
+  ...common,
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `change-password:${req.user.id}`,
+  handler: tooMany('Too many attempts. Please wait 15 minutes and try again.'),
+});

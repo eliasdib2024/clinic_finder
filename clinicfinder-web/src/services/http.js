@@ -21,6 +21,13 @@ export function setApiToken(token, remember = true) {
   } catch { /* storage unavailable */ }
 }
 
+/** Swaps in a new token (e.g. after a password change) without changing "keep me signed in". */
+export function replaceApiToken(token) {
+  let remembered = true;
+  try { remembered = Boolean(localStorage.getItem(API_TOKEN_KEY)) || !sessionStorage.getItem(API_TOKEN_KEY); } catch { /* storage unavailable */ }
+  setApiToken(token, remembered);
+}
+
 /**
  * fieldMap renames API field names to the form's field names, e.g. { cityId: 'city' },
  * so each message appears under the right input.

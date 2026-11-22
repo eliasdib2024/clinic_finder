@@ -19,8 +19,10 @@ const resetKey = createHmac('sha256', config.jwt.secret).update('password-reset-
 
 export const passwordVersion = (passwordHash) => fingerprint(passwordHash);
 
+// `rem` remembers whether the user ticked "keep me signed in", so a replacement token
+// (after changing the password) keeps the same lifetime.
 export function signAccessToken(user, { remember = false } = {}) {
-  return jwt.sign({ role: user.role, pwv: passwordVersion(user.passwordHash) }, config.jwt.secret, {
+  return jwt.sign({ role: user.role, pwv: passwordVersion(user.passwordHash), rem: remember || undefined }, config.jwt.secret, {
     subject: String(user.id),
     issuer: ISSUER,
     expiresIn: remember ? config.jwt.rememberExpiresIn : config.jwt.expiresIn,

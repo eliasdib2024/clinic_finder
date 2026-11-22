@@ -1458,4 +1458,8 @@ export default {
   "Too many codes were requested. Please try again in an hour.": "Trop de codes ont été demandés. Réessayez dans une heure.",
   "Please confirm your email address first. Enter the code we emailed you, or ask for a new one.": "Confirmez d’abord votre adresse e-mail. Saisissez le code reçu par e-mail ou demandez-en un nouveau.",
   "Your email address is confirmed.": "Votre adresse e-mail est confirmée.",
+  // Change password (settings)
+  "Your other devices were signed out.": "Vos autres appareils ont été déconnectés.",
+  "Your password was just changed from another session. Please sign in again.": "Votre mot de passe vient d’être modifié depuis une autre session. Veuillez vous reconnecter.",
+  "Your password has been changed. Your other devices were signed out.": "Votre mot de passe a été modifié. Vos autres appareils ont été déconnectés.",
 };

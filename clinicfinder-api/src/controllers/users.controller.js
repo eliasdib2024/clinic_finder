@@ -17,6 +17,11 @@ export async function updateMe(req, res) {
   res.json(await usersService.updateMe(req.user.id, req.body));
 }
 
+// Returns { message, token }: the old token stops working, the frontend stores the new one
+export async function changePassword(req, res) {
+  res.json(await usersService.changePassword(req.user.id, req.body, { remember: req.user.remember }));
+}
+
 export async function updateStatus(req, res) {
   const user = await usersService.updateStatus(req.user.id, req.params.id, req.body);
   req.log.info({ targetUserId: user.id, status: user.status }, 'account status changed');
