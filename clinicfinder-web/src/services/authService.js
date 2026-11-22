@@ -6,7 +6,7 @@ import { ApiError, request, setToken, getToken, currentUser, requireUser, hashPa
 import { publicUser } from './serializers';
 import { email as vEmail, password as vPassword, lebanesePhone, normalizeLebanesePhone, licenseNumber, required, validate } from '../lib/validators';
 import { defaultSchedule } from '../lib/schedule';
-import { citiesOf } from '../lib/constants';
+import { citiesOf, SUPPORT_EMAIL } from '../lib/constants';
 import { isApiConfigured } from './http';
 import * as api from './api/authApi';
 
@@ -22,10 +22,8 @@ export function login({ email, password, remember = false }) {
     if (Object.keys(errors).length) throw new ApiError(tx('Please fix the highlighted fields.'), 422, errors);
     const user = findByEmail(db, email);
     if (!user || user.passwordHash !== hashPassword(password)) throw new ApiError(tx('Incorrect email or password.'), 401);
-    if (user.status === 'suspended') throw new ApiError(tx('This account is suspended. Please contact support@clinicfinder.lb.'), 403);
-    if (user.status === 'deactivated') throw new ApiError(tx(
-      'This account was deactivated. Contact support@clinicfinder.lb to restore it.'
-    ), 403);
+    if (user.status === 'suspended') throw new ApiError(tx('This account is suspended. Please contact {0}.', { 0: SUPPORT_EMAIL }), 403);
+    if (user.status === 'deactivated') throw new ApiError(tx('This account was deactivated. Contact {0} to restore it.', { 0: SUPPORT_EMAIL }), 403);
     const token = newId('tok');
     db.sessions[token] = { userId: user.id, createdAt: new Date().toISOString(), remember };
     setToken(token, remember);

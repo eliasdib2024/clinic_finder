@@ -1,5 +1,6 @@
 // auth.service.js – signing in. Knows nothing about HTTP.
 import { HttpError, unauthorized, notFound } from '../errors/http-error.js';
+import { config } from '../config/env.js';
 import * as usersRepository from '../repositories/users.repository.js';
 import { verifyPassword, fakeVerify } from '../utils/password.js';
 import { signAccessToken } from '../utils/jwt.js';
@@ -14,8 +15,8 @@ export async function login({ email, password, remember }) {
   const ok = user ? await verifyPassword(password, user.passwordHash) : await fakeVerify(password);
   if (!ok) throw unauthorized(WRONG);
 
-  if (user.status === 'suspended') throw new HttpError(403, 'This account is suspended. Please contact support@clinicfinder.lb.');
-  if (user.status === 'deactivated') throw new HttpError(403, 'This account was deactivated. Contact support@clinicfinder.lb to restore it.');
+  if (user.status === 'suspended') throw new HttpError(403, `This account is suspended. Please contact ${config.supportEmail}.`);
+  if (user.status === 'deactivated') throw new HttpError(403, `This account was deactivated. Contact ${config.supportEmail} to restore it.`);
 
   return { token: signAccessToken(user, { remember }), user: toUserDto(user) };
 }

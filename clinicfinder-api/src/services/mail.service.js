@@ -13,7 +13,8 @@ const log = logger.child({ module: 'mail' });
 
 async function deliver(to, { subject, text, html }, kind) {
   try {
-    const info = await mailer.sendMail({ from: config.mail.from, to, subject, text, html });
+    // replyTo: pressing "Reply" on any of our emails writes to the real support inbox
+    const info = await mailer.sendMail({ from: config.mail.from, replyTo: config.supportEmail, to, subject, text, html });
     if (printsToConsole) {
       // Development only (MAIL_TRANSPORT=console): show the email so the flow can be tested without a mail account.
       // In production the transport is smtp and this branch never runs, so codes never reach the logs.

@@ -4,11 +4,17 @@ import { ApiError } from '../db';
 import { tx } from '../../lib/i18n';
 import { mirrorUser, closeMockSession } from './bridge';
 import { specialtyIdFor, cityIdFor, bloodTypeIdFor, insuranceIdFor } from './lookups';
+import { SUPPORT_EMAIL } from '../../lib/constants';
+
+// API messages contain the support address; the translations hold {0} in its place
+const txApi = (msg) => (typeof msg === 'string' && msg.includes(SUPPORT_EMAIL)
+  ? tx(msg.split(SUPPORT_EMAIL).join('{0}'), { 0: SUPPORT_EMAIL })
+  : tx(msg));
 
 const translated = (err) => {
   if (err instanceof ApiError) {
-    err.message = tx(err.message);
-    if (err.fields) for (const k of Object.keys(err.fields)) err.fields[k] = tx(err.fields[k]);
+    err.message = txApi(err.message);
+    if (err.fields) for (const k of Object.keys(err.fields)) err.fields[k] = txApi(err.fields[k]);
   }
   return err;
 };

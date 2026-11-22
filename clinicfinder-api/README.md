@@ -63,6 +63,8 @@ Then edit `.env`:
 | `PORT` | Port the API listens on | `3000` |
 | `LOG_LEVEL` | `error`, `warn`, `info` or `debug` | `info` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://clinicfinder_user:change_me@localhost:5432/clinicfinder?schema=public` |
+| `SUPPORT_EMAIL` | Real support inbox (error messages, reply-to, where support links lead) | `mauriceyaacoub22@gmail.com` |
+| `SUPPORT_EMAIL_DISPLAY` | Address shown on clickable support links | `support@clinicfinder.lb` |
 | `APP_URL` | Frontend address, used for links in emails | `http://localhost:5173` |
 | `MAIL_TRANSPORT` | `console` (print emails in the terminal, development) or `smtp` (send them) | `console` |
 | `MAIL_FROM` | Sender shown in the inbox | `ClinicFinder <no-reply@clinicfinder.lb>` |

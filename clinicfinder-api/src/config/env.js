@@ -25,6 +25,11 @@ const schema = z.object({
   ADMIN_PASSWORD: z.string().optional(),
   ADMIN_PHONE: z.string().default('+9611000000'),
 
+  // Support contact. SUPPORT_EMAIL is the real inbox that receives messages;
+  // SUPPORT_EMAIL_DISPLAY is the address shown on clickable links (which open SUPPORT_EMAIL).
+  SUPPORT_EMAIL: z.email('must be an email address').default('mauriceyaacoub22@gmail.com'),
+  SUPPORT_EMAIL_DISPLAY: z.email('must be an email address').default('support@clinicfinder.lb'),
+
   // Address of the frontend, used for links inside emails
   APP_URL: z.url('must be a full URL, e.g. http://localhost:5173').default('http://localhost:5173'),
 
@@ -73,6 +78,8 @@ export const config = Object.freeze({
   jwt: { secret: env.JWT_SECRET, expiresIn: env.JWT_EXPIRES_IN, rememberExpiresIn: env.JWT_REMEMBER_EXPIRES_IN },
   admin: { name: env.ADMIN_NAME, email: env.ADMIN_EMAIL, password: env.ADMIN_PASSWORD, phone: env.ADMIN_PHONE },
   appUrl: env.APP_URL.replace(/\/$/, ''),
+  supportEmail: env.SUPPORT_EMAIL,
+  supportEmailDisplay: env.SUPPORT_EMAIL_DISPLAY,
   mail: {
     transport: env.MAIL_TRANSPORT,
     from: env.MAIL_FROM

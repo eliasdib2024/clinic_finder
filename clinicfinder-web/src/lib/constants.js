@@ -2,6 +2,11 @@
 // Catalog lists (specialties, insurers, languages) are seeded from here and then
 // owned by the admin-editable catalog in the store.
 
+// Support contact. SUPPORT_EMAIL is the real inbox; links show SUPPORT_EMAIL_DISPLAY but open SUPPORT_EMAIL.
+// Override in .env with VITE_SUPPORT_EMAIL / VITE_SUPPORT_EMAIL_DISPLAY.
+export const SUPPORT_EMAIL = import.meta.env?.VITE_SUPPORT_EMAIL || 'mauriceyaacoub22@gmail.com';
+export const SUPPORT_EMAIL_DISPLAY = import.meta.env?.VITE_SUPPORT_EMAIL_DISPLAY || 'support@clinicfinder.lb';
+
 export const GOVERNORATES = [
   { id: 'beirut', name: 'Beirut', cities: ['Achrafieh', 'Hamra', 'Verdun', 'Ras Beirut', 'Mar Mikhael', 'Mazraa'] },
   { id: 'mount-lebanon', name: 'Mount Lebanon', cities: ['Baabda', 'Hazmieh', 'Jdeideh', 'Antelias', 'Dbayeh', 'Broummana', 'Aley', 'Beiteddine'] },

@@ -1,4 +1,5 @@
 import { unauthorized, forbidden } from '../errors/http-error.js';
+import { config } from '../config/env.js';
 import { verifyAccessToken, passwordVersion } from '../utils/jwt.js';
 import * as usersRepository from '../repositories/users.repository.js';
 
@@ -24,7 +25,7 @@ export async function authenticate(req, res, next) {
   if (payload.pwv !== passwordVersion(account.passwordHash)) {
     return next(unauthorized('Your password was changed. Please sign in again.'));
   }
-  if (account.status !== 'active') return next(forbidden('This account is not active. Contact support@clinicfinder.lb.'));
+  if (account.status !== 'active') return next(forbidden(`This account is not active. Contact ${config.supportEmail}.`));
 
   req.user = { id: account.id, role: account.role };
   next();

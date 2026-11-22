@@ -9,6 +9,7 @@ import { useI18n } from '../../context/I18nContext';
 import { useAuth, homeFor } from '../../context/AuthContext';
 import { PageLoader } from '../shared/PageLoader';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_DISPLAY } from '../../lib/constants';
 
 export function PublicLayout() {
   const { t } = useI18n();
@@ -83,7 +84,7 @@ export function PublicLayout() {
             </div>
             <div><h4>{tx('Patients')}</h4><ul><li><Link to="/find">{tx('Find a doctor')}</Link></li><li><Link to="/#specialties">{tx('Browse specialties')}</Link></li><li><Link to="/verify">{tx('Verify a prescription')}</Link></li><li><Link to="/signup">{tx('Create an account')}</Link></li></ul></div>
             <div><h4>{tx('Doctors')}</h4><ul><li><Link to="/signup?role=doctor">{tx('Join as a doctor')}</Link></li><li><Link to="/#doctors">{tx('Why ClinicFinder')}</Link></li><li><Link to="/login">{tx('Doctor sign in')}</Link></li></ul></div>
-            <div><h4>{tx('Contact')}</h4><ul><li><a href="mailto:support@clinicfinder.lb">{tx('support@clinicfinder.lb')}</a></li><li><a href="tel:+9611456789">+961 1 456 789</a></li><li><span className="muted small">{tx('Achrafieh, Beirut')}</span></li></ul></div>
+            <div><h4>{tx('Contact')}</h4><ul><li><a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL_DISPLAY}</a></li><li><a href="tel:+9611456789">+961 1 456 789</a></li><li><span className="muted small">{tx('Achrafieh, Beirut')}</span></li></ul></div>
           </div>
           <div className="footer-bottom">
             <span>{tx(

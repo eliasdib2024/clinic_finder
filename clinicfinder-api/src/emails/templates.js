@@ -60,7 +60,7 @@ const STRINGS = {
   },
 };
 
-const SUPPORT = 'support@clinicfinder.lb';
+const SUPPORT = config.supportEmail;
 const LOCALES = { en: 'en-GB', fr: 'fr-FR', ar: 'ar-LB-u-nu-latn' };
 
 const fill = (s, vars) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
@@ -123,7 +123,9 @@ export function passwordChangedEmail({ name, language, when = new Date() }) {
     p(fill(t.hello, { name: firstName(name) })),
     p(fill(t.changedIntro, { when: whenText })),
     p(t.changedOk),
-    p(fill(t.changedNotYou, { support: SUPPORT })),
+    // Shows support@clinicfinder.lb, but clicking it writes to the real support inbox
+    `<p style="margin:0 0 14px">${esc(t.changedNotYou).replace('{support}',
+      `<a href="mailto:${esc(SUPPORT)}" style="color:#0f5e57">${esc(config.supportEmailDisplay)}</a>`)}</p>`,
   ].join('\n');
 
   return {

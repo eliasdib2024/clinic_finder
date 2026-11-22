@@ -107,7 +107,7 @@ export async function resetPassword(resetToken, newPassword) {
     activity.logActivity('{0} reset their password', 'user', { 0: user.fullName }),
     activity.notify(user.id, {
       title: 'Password changed',
-      body: 'Your password was reset. If this was not you, contact support@clinicfinder.lb.',
+      body: `Your password was reset. If this was not you, contact ${config.supportEmail}.`,
       kind: 'warning',
     }),
   ]);
