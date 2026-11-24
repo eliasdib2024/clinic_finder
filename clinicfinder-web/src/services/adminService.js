@@ -1,6 +1,8 @@
 import { tx } from '../lib/i18n';
 // Administration: platform stats, verification, users, clinics and catalog.
-import { ApiError, request, requireUser, newId, notify, logActivity } from './db';
+import { ApiError, request, requireUser, newId, notify, logActivity, getDb } from './db';
+import { isApiConfigured } from './http';
+import * as adminApi from './api/adminApi';
 import { doctorView, publicUser, nameOf } from './serializers';
 import { cancelFutureFor } from './userService';
 import { addDays, todayISO } from '../lib/dates';
@@ -51,16 +53,39 @@ export function getStats({ days = 14 } = {}) {
 }
 
 // ---------------- verification ----------------
-export function listDoctorsByVerification(status = 'pending') {
+export async function listDoctorsByVerification(status = 'pending') {
+  if (isApiConfigured()) {
+    // The database decides who is in the list; the browser copy is only used to build the view
+    const ids = await adminApi.listDoctorApplications(status);
+    return request((db) => {
+      admin(db);
+      return ids.map((id) => doctorView(db, db.doctors.find((d) => d.id === id), { withNext: false }));
+    }, { latency: 0 });
+  }
   return request((db) => {
     admin(db);
-    return db.doctors.filter((d) => status === 'all' || d.verification.status === status)
+    const isDoctor = (d) => db.users.find((u) => u.id === d.userId)?.role === 'doctor';
+    return db.doctors.filter((d) => isDoctor(d) && (status === 'all' || d.verification.status === status))
       .map((d) => doctorView(db, d, { withNext: false }))
       .sort((a, b) => (b.verification.submittedAt || '').localeCompare(a.verification.submittedAt || ''));
   });
 }
 
-export function setVerification(doctorId, status, reason = '') {
+export async function setVerification(doctorId, status, reason = '') {
+  // Frontend checks first (the API checks them again)
+  await request((db) => {
+    admin(db);
+    const d = db.doctors.find((x) => x.id === doctorId);
+    if (!d) throw new ApiError(tx('Doctor not found.'), 404);
+    if (!['approved', 'rejected'].includes(status)) throw new ApiError(tx('Unsupported status.'), 422);
+    if (status === 'rejected' && String(reason).trim().length < 10) throw new ApiError(tx('Give the doctor a clear reason (at least 10 characters).'), 422, { reason: tx('Give a clear reason (at least 10 characters).') });
+  }, { latency: 0 });
+  if (isApiConfigured()) {
+    const apiDoctorId = getDb().doctors.find((x) => x.id === doctorId)?.apiId;
+    if (!apiDoctorId) throw new ApiError(tx('Doctor not found.'), 404);
+    const id = await adminApi.reviewDoctorApplication(apiDoctorId, status, reason);
+    return request((db) => doctorView(db, db.doctors.find((d) => d.id === id), { withNext: false }), { latency: 0 });
+  }
   return request((db) => {
     const a = admin(db);
     const d = db.doctors.find((x) => x.id === doctorId);
